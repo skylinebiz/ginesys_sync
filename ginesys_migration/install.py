@@ -1,4 +1,4 @@
-from ginesys_migration.setup.custom_fields import create_custom_fields
+from ginesys_migration.setup.custom_field import create_custom_fields
 
 
 def after_install():
