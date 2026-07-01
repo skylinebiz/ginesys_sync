@@ -1,4 +1,4 @@
-# utils/oracle.py
+# ginesys_migration/utils/oracle.py
 
 import oracledb
 

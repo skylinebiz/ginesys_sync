@@ -1,8 +1,7 @@
 # scripts/sync_item_groups.py
 
 import frappe
-import oracledb
-from ec.utils.oracle import get_ginesys_connection, get_adrk_connection
+from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_connection
 
 
 def create_group(group_name, parent, grpcode, is_group=1):
@@ -102,19 +101,15 @@ def sync_item_groups():
             lev2 = (lev2 or "").strip()
 
             if not lev1:
-                # Women
                 level1_codes[grpname] = grpcode
 
             elif lev1 and not lev2:
-                # Women -> Upper
                 level2_codes[(lev1, grpname)] = grpcode
 
             else:
-                # Women -> Upper -> Saree
                 leaf_codes[(lev1, lev2, grpname)] = grpcode
 
         # Create hierarchy
-
         for grpcode, grpname, lev1, lev2 in rows:
 
             grpname = (grpname or "").strip()
@@ -124,7 +119,6 @@ def sync_item_groups():
             parent = ROOT_GROUP
 
             # Level 1
-
             if lev1:
 
                 level1 = create_group(
@@ -137,7 +131,6 @@ def sync_item_groups():
                 parent = level1
 
             # Level 2
-
             if lev2:
 
                 level2 = create_group(
@@ -150,7 +143,6 @@ def sync_item_groups():
                 parent = level2
 
             # Leaf
-
             if lev1 and lev2:
                 leaf_code = leaf_codes.get((lev1, lev2, grpname))
 

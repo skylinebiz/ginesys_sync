@@ -1,7 +1,7 @@
 # ec/ec/scripts/test_oracle.py
 
 import frappe
-from ec.utils.oracle import get_ginesys_connection, get_adrk_connection
+from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_connection
 
 
 @frappe.whitelist()
