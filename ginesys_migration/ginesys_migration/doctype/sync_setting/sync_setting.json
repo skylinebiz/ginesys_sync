@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-01 13:53:01.476562",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "last_sync",
+  "last_item_sync",
+  "last_customer_sync",
+  "last_item_group_sync",
+  "last_supplier_sync"
+ ],
+ "fields": [
+  {
+   "fieldname": "last_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Sync"
+  },
+  {
+   "fieldname": "last_item_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Item Sync"
+  },
+  {
+   "fieldname": "last_customer_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Customer Sync"
+  },
+  {
+   "fieldname": "last_item_group_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Item Group Sync"
+  },
+  {
+   "fieldname": "last_supplier_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Supplier Sync"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-07-01 16:51:12.055300",
+ "modified_by": "Administrator",
+ "module": "Ginesys Migration",
+ "name": "Sync Setting",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

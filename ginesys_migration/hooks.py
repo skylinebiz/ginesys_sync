@@ -88,6 +88,7 @@ app_license = "mit"
 # before_install = "ginesys_migration.install.before_install"
 # after_install = "ginesys_migration.install.after_install"
 
+after_install = "ginesys_migration.install.after_install"
 # Uninstallation
 # ------------
 
