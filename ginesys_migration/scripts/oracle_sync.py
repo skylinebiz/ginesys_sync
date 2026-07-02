@@ -10,13 +10,16 @@ COMMIT_EVERY = 500
 
 
 @frappe.whitelist()
-def sync_item_data():
+def sync_item_data(host="192.168.3.3", port=1521):
 
     conn = None
     cursor = None
 
     try:
-        conn = get_ginesys_connection()
+        conn = get_ginesys_connection(
+            host=host,
+            port=int(port),
+        )
         cursor = conn.cursor()
 
         last_item_sync = frappe.db.get_single_value(

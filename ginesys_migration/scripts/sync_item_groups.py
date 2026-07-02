@@ -56,7 +56,7 @@ def create_group(group_name, parent, grpcode, is_group=1):
 
 
 @frappe.whitelist()
-def sync_item_groups():
+def sync_item_groups(host="192.168.3.3", port=1521):
 
     ROOT_GROUP = "EC Item Group"
 
@@ -68,7 +68,10 @@ def sync_item_groups():
             "is_group": 1,
         }).insert(ignore_permissions=True)
 
-    conn = get_ginesys_connection()
+    conn = get_ginesys_connection(
+        host=host,
+        port=int(port),
+    )
     cursor = conn.cursor()
 
     try:

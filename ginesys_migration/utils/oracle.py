@@ -1,18 +1,21 @@
-# ginesys_migration/utils/oracle.py
-
 import oracledb
 
 
-def get_ginesys_connection():
+def get_ginesys_connection(
+    host="192.168.3.3",
+    port=1521,
+    user="ARCR",
+    password="gmpl",
+):
     return oracledb.connect(
-        user="ARCR",
-        password="gmpl",
-        dsn="""
+        user=user,
+        password=password,
+        dsn=f"""
         (DESCRIPTION=
             (ADDRESS=
                 (PROTOCOL=TCP)
-                (HOST=192.168.3.3)
-                (PORT=1521)
+                (HOST={host})
+                (PORT={port})
             )
             (CONNECT_DATA=
                 (SERVER=DEDICATED)
@@ -23,16 +26,21 @@ def get_ginesys_connection():
     )
 
 
-def get_adrk_connection():
+def get_adrk_connection(
+    host="192.168.3.3",
+    port=1521,
+    user="adrk",
+    password="adrk",
+):
     return oracledb.connect(
-        user="adrk",
-        password="adrk",
-        dsn="""
+        user=user,
+        password=password,
+        dsn=f"""
         (DESCRIPTION=
             (ADDRESS=
                 (PROTOCOL=TCP)
-                (HOST=192.168.3.3)
-                (PORT=1521)
+                (HOST={host})
+                (PORT={port})
             )
             (CONNECT_DATA=
                 (SERVER=DEDICATED)
