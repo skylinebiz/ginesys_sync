@@ -8,7 +8,7 @@ from erpnext.controllers.item_variant import get_variant
 COMMIT_EVERY = 500
 
 @frappe.whitelist()
-def sync_item_data(host="192.168.3.3", port=1521, limit=50):
+def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
 
     conn = None
     cursor = None
@@ -64,6 +64,7 @@ def sync_item_data(host="192.168.3.3", port=1521, limit=50):
                 BARCODE
             FROM INVITEM
             WHERE LAST_CHANGED >= :sync_from
+            AND MATERIAL_TYPE = 'F'
             ORDER BY LAST_CHANGED
         )
         WHERE ROWNUM <= :limit
@@ -88,6 +89,7 @@ def sync_item_data(host="192.168.3.3", port=1521, limit=50):
         item_group_map = get_item_group_map(cursor)
         synced = 0
         failed = 0
+        failed_items = []
 
         # Process Records
         for row in rows:
@@ -154,18 +156,19 @@ def sync_item_data(host="192.168.3.3", port=1521, limit=50):
 
                 # Resolve Item Group
 
-                item_group = item_group_map.get(grpcode)
+                group_info = item_group_map.get(grpcode)
 
-                if not item_group:
-
+                if not group_info:
                     failed += 1
 
                     frappe.log_error(
                         title=f"Missing Item Group ({grpcode})",
                         message=f"Style : {style_no}",
                     )
-
                     continue
+
+                item_group = group_info.name
+                hsn_code = group_info.gst_hsn_code
 
                 # Ensure Item Attributes
 
@@ -270,7 +273,7 @@ def sync_item_data(host="192.168.3.3", port=1521, limit=50):
                 if synced and synced % COMMIT_EVERY == 0:
                     frappe.db.commit()
 
-                    print(f"{synced} items synced...")
+                    print(f"{synced} items commited...")
                     # frappe.logger().info(
                     #     f"{synced} items synced..."
                     # )
@@ -283,20 +286,33 @@ def sync_item_data(host="192.168.3.3", port=1521, limit=50):
                 failed += 1
                 print(f"Sync Error : {style_no}")
 
-                frappe.log_error(
-                    title=f"Oracle Sync : {style_no}",
-                    message=frappe.get_traceback(),
+                failed_items.append(
+                    "\n".join([
+                        f"Style No    : {style_no}",
+                        f"Item Group  : {item_group}",
+                        f"HSN         : {hsn_code}",
+                        f"Colour      : {colour}",
+                        f"Colour Code : {colour_code}",
+                        f"Size        : {size}",
+                        "",
+                        frappe.get_traceback(),
+                        "-" * 80,
+                    ])
                 )
 
         # Save Sync Time
-
-        last_changed = get_datetime(rows[-1][1]) - timedelta(hours=1)
-
+        last_changed = get_datetime(rows[-1][1]) - timedelta(minutes=5)
         frappe.db.set_single_value(
             "Sync Setting",
             "last_item_sync",
             last_changed,
         )
+
+        if failed_items:
+            frappe.log_error(
+                title=f"Oracle Item Sync - {failed} Failed Item(s)",
+                message="\n\n".join(failed_items),
+            )
 
         frappe.db.commit()
         print(f"\nSync Completed | Success: {synced} | Failed: {failed}")
@@ -341,10 +357,16 @@ def get_item_group_map(cursor):
 
     for grpcode, grpname in cursor.fetchall():
         item_group_name = f"{str(grpname).strip()} ({grpcode})"
-        group_map[grpcode] = frappe.db.exists(
+
+        item_group = frappe.db.get_value(
             "Item Group",
             item_group_name,
+            ["name", "gst_hsn_code"],
+            as_dict=True,
         )
+
+        if item_group and item_group.gst_hsn_code:
+            group_map[grpcode] = item_group
 
     return group_map
 
@@ -395,7 +417,6 @@ def ensure_item_attribute(attribute_name):
 
 # Attribute Value
 def ensure_attribute_value(attribute_name, value):
-
     if not value:
         return
 
@@ -411,27 +432,21 @@ def ensure_attribute_value(attribute_name, value):
         attribute_name,
     )
 
-    exists = False
+    normalized_value = value.casefold()
 
     for d in attribute.item_attribute_values:
-
-        if d.attribute_value == value:
-            exists = True
-            break
-
-    if exists:
-        return
+        if (d.attribute_value or "").strip().casefold() == normalized_value:
+            return
 
     attribute.append(
         "item_attribute_values",
         {
-            "attribute_value": value,
-            "abbr": value,
+            "attribute_value": value.strip(),
+            "abbr": value.strip().upper(),
         },
     )
 
     attribute.save(ignore_permissions=True)
-
 
 # Template
 def ensure_template(style_no, item_group):
@@ -515,13 +530,13 @@ def ensure_variant(
     args = {}
 
     if colour:
-        args["Colour"] = colour
+        args["Colour"] = get_attribute_value("Colour", colour)
 
     if colour_code:
-        args["Colour Code"] = colour_code
+        args["Colour Code"] = get_attribute_value("Colour Code", colour_code)
 
     if size:
-        args["Size"] = size
+        args["Size"] = get_attribute_value("Size", size)
 
     # Existing Variant
 
@@ -633,6 +648,20 @@ def update_price(item_code, price_list, rate):
 
     doc.insert(ignore_permissions=True)
 
+
+def get_attribute_value(attribute_name, value):
+    if not value:
+        return value
+
+    value = str(value).strip()
+
+    attribute = frappe.get_doc("Item Attribute", attribute_name)
+
+    for d in attribute.item_attribute_values:
+        if (d.attribute_value or "").strip().casefold() == value.casefold():
+            return d.attribute_value
+
+    return value
 
 # Utility
 
