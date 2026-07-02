@@ -4,18 +4,21 @@ import frappe
 from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_connection
 
 
-def create_group(group_name, parent, grpcode, is_group=1):
+def create_group(group_name, parent, grpcode, hsn_code=None, is_group=1):
     if not group_name:
         return None
 
     group_name = str(group_name).strip()
+
+    if hsn_code:
+        hsn_code = ensure_hsn_code(hsn_code)
 
     doc_name = f"{group_name} ({grpcode})" if grpcode else group_name
 
     existing = frappe.db.get_value(
         "Item Group",
         {"name": doc_name},
-        ["name", "is_group", "parent_item_group"],
+        ["name", "is_group", "parent_item_group", "gst_hsn_code"],
         as_dict=True,
     )
 
@@ -28,6 +31,9 @@ def create_group(group_name, parent, grpcode, is_group=1):
         if existing.parent_item_group != parent:
             updates["parent_item_group"] = parent
 
+        if hsn_code and existing.gst_hsn_code != hsn_code:
+            updates["gst_hsn_code"] = hsn_code
+
         if updates:
             frappe.db.set_value(
                 "Item Group",
@@ -38,14 +44,12 @@ def create_group(group_name, parent, grpcode, is_group=1):
 
         return existing.name
 
-    # display_name = group_name
-    # doc_name = f"{group_name} ({grpcode})"
-
     doc = frappe.get_doc({
         "doctype": "Item Group",
         "item_group_name": doc_name,
         "parent_item_group": parent,
         "is_group": is_group,
+        "gst_hsn_code": hsn_code,
     })
 
     doc.insert(ignore_permissions=True)
@@ -78,11 +82,14 @@ def sync_item_groups(host="192.168.3.3", port=1521):
 
         cursor.execute("""
             SELECT DISTINCT
-                GRPCODE,
-                TRIM(GRPNAME) AS GRPNAME,
-                TRIM(LEV1GRPNAME) AS LEV1GRPNAME,
-                TRIM(LEV2GRPNAME) AS LEV2GRPNAME
-            FROM INVGRP
+                G.GRPCODE,
+                TRIM(G.GRPNAME) AS GRPNAME,
+                TRIM(G.LEV1GRPNAME) AS LEV1GRPNAME,
+                TRIM(G.LEV2GRPNAME) AS LEV2GRPNAME,
+                TRIM(H.HSN_SAC_CODE) AS HSNCODE
+            FROM INVGRP G
+            LEFT JOIN INVHSNSACMAIN H
+                ON H.CODE = G.INVHSNSACMAIN_CODE
             ORDER BY
                 LEV1GRPNAME,
                 LEV2GRPNAME,
@@ -97,7 +104,7 @@ def sync_item_groups(host="192.168.3.3", port=1521):
         level2_codes = {}
         leaf_codes = {}
 
-        for grpcode, grpname, lev1, lev2 in rows:
+        for grpcode, grpname, lev1, lev2, hsn_code in rows:
 
             grpname = (grpname or "").strip()
             lev1 = (lev1 or "").strip()
@@ -113,7 +120,7 @@ def sync_item_groups(host="192.168.3.3", port=1521):
                 leaf_codes[(lev1, lev2, grpname)] = grpcode
 
         # Create hierarchy
-        for grpcode, grpname, lev1, lev2 in rows:
+        for grpcode, grpname, lev1, lev2, hsn_code in rows:
 
             grpname = (grpname or "").strip()
             lev1 = (lev1 or "").strip()
@@ -159,6 +166,7 @@ def sync_item_groups(host="192.168.3.3", port=1521):
                 grpname,
                 parent,
                 leaf_code,
+                hsn_code=hsn_code,
                 is_group=0,
             )
 
@@ -180,6 +188,22 @@ def sync_item_groups(host="192.168.3.3", port=1521):
         cursor.close()
         conn.close()
 
+
+def ensure_hsn_code(hsn_code):
+    if not hsn_code:
+        return None
+
+    hsn_code = str(hsn_code).strip()
+
+    if not frappe.db.exists("GST HSN Code", hsn_code):
+        frappe.get_doc({
+            "doctype": "GST HSN Code",
+            "hsn_code": hsn_code,
+        }).insert(ignore_permissions=True)
+
+        print(f"Created GST HSN Code: {hsn_code}")
+
+    return hsn_code
 
 @frappe.whitelist()
 def test_sync_item_groups():
