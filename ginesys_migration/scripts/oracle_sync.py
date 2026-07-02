@@ -1,16 +1,14 @@
 import frappe
 from datetime import datetime, timedelta
-from frappe.utils import get_datetime
+from frappe.utils import get_datetime, cint
 from erpnext.controllers.item_variant import create_variant
 from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_connection
 from erpnext.controllers.item_variant import get_variant
 
-BATCH_SIZE = 10000
 COMMIT_EVERY = 500
 
-
 @frappe.whitelist()
-def sync_item_data(host="192.168.3.3", port=1521):
+def sync_item_data(host="192.168.3.3", port=1521, limit=50):
 
     conn = None
     cursor = None
@@ -32,10 +30,15 @@ def sync_item_data(host="192.168.3.3", port=1521):
         else:
             sync_from = datetime(1970, 1, 1)
 
-        frappe.logger().info(
-            f"Oracle Item Sync Started from {sync_from}"
-        )
+        print(f"Oracle Item Sync Started from {sync_from}")
 
+        limit = cint(limit)
+
+        if limit <= 0:
+            frappe.throw("Count must be greater than 0.")
+
+        limit = min(limit, 10000)
+        PRINT_EVERY = max(1, limit // 10)
         # Fetch Records
 
         sql = """
@@ -70,7 +73,7 @@ def sync_item_data(host="192.168.3.3", port=1521):
             sql,
             {
                 "sync_from": sync_from,
-                "limit": BATCH_SIZE,
+                "limit": limit,
             },
         )
 
@@ -80,16 +83,13 @@ def sync_item_data(host="192.168.3.3", port=1521):
             frappe.msgprint("No records to sync.")
             return
 
-        frappe.logger().info(
-            f"{len(rows)} records fetched from Oracle."
-        )
+        print(f"{len(rows)} records fetched from Oracle.")
 
+        item_group_map = get_item_group_map(cursor)
         synced = 0
         failed = 0
 
-        
         # Process Records
-
         for row in rows:
 
             try:
@@ -154,10 +154,7 @@ def sync_item_data(host="192.168.3.3", port=1521):
 
                 # Resolve Item Group
 
-                item_group = get_item_group(
-                    cursor,
-                    grpcode,
-                )
+                item_group = item_group_map.get(grpcode)
 
                 if not item_group:
 
@@ -273,13 +270,18 @@ def sync_item_data(host="192.168.3.3", port=1521):
                 if synced and synced % COMMIT_EVERY == 0:
                     frappe.db.commit()
 
-                    frappe.logger().info(
-                        f"{synced} items synced..."
-                    )
+                    print(f"{synced} items synced...")
+                    # frappe.logger().info(
+                    #     f"{synced} items synced..."
+                    # )
+
+                if synced and (synced % PRINT_EVERY == 0 or synced == limit):
+                    print(f"Synced {synced}/{limit} items...")
 
             except Exception:
 
                 failed += 1
+                print(f"Sync Error : {style_no}")
 
                 frappe.log_error(
                     title=f"Oracle Sync : {style_no}",
@@ -297,6 +299,7 @@ def sync_item_data(host="192.168.3.3", port=1521):
         )
 
         frappe.db.commit()
+        print(f"\nSync Completed | Success: {synced} | Failed: {failed}")
 
         frappe.msgprint(
             f"""
@@ -327,6 +330,23 @@ def sync_item_data(host="192.168.3.3", port=1521):
         if conn:
             conn.close()
 
+
+def get_item_group_map(cursor):
+    cursor.execute("""
+        SELECT GRPCODE, GRPNAME
+        FROM INVGRP
+    """)
+
+    group_map = {}
+
+    for grpcode, grpname in cursor.fetchall():
+        item_group_name = f"{str(grpname).strip()} ({grpcode})"
+        group_map[grpcode] = frappe.db.exists(
+            "Item Group",
+            item_group_name,
+        )
+
+    return group_map
 
 # Item Group
 def get_item_group(cursor, grpcode):
@@ -421,7 +441,7 @@ def ensure_template(style_no, item_group):
     )
 
     if template:
-        return
+        return template
 
         # doc = frappe.get_doc(
         #     "Item",
