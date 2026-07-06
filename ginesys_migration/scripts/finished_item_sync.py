@@ -90,6 +90,7 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
         synced = 0
         failed = 0
         failed_items = []
+        missing_item_groups = {}
 
         # Process Records
         for row in rows:
@@ -157,18 +158,23 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                 # Resolve Item Group
 
                 group_info = item_group_map.get(grpcode)
+                item_group = group_info.name
+                hsn_code = group_info.gst_hsn_code
 
                 if not group_info:
                     failed += 1
 
-                    frappe.log_error(
-                        title=f"Missing Item Group ({grpcode})",
-                        message=f"Style : {style_no}",
-                    )
+                    missing_item_groups.setdefault(
+                        grpcode,
+                        {
+                            "group_name": item_group if 'item_group' in locals() else "",
+                            "hsn_code": hsn_code if 'hsn_code' in locals() else "",
+                            "styles": [],
+                        },
+                    )["styles"].append(style_no)
+
                     continue
 
-                item_group = group_info.name
-                hsn_code = group_info.gst_hsn_code
 
                 # Ensure Item Attributes
 
@@ -301,7 +307,11 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                 )
 
         # Save Sync Time
-        last_changed = get_datetime(rows[-1][1]) - timedelta(minutes=5)
+        last_changed = get_datetime(rows[-1][1])
+
+        print("Last row timestamp:", last_changed)
+        print("Saved in Sync Setting:", last_changed)
+
         frappe.db.set_single_value(
             "Sync Setting",
             "last_item_sync",
@@ -312,6 +322,23 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
             frappe.log_error(
                 title=f"Oracle Item Sync - {failed} Failed Item(s)",
                 message="\n\n".join(failed_items),
+            )
+
+        if missing_item_groups:
+            message = []
+
+            for grpcode, data in sorted(missing_item_groups.items()):
+                message.append(
+                    f"Group Code : {grpcode}\n"
+                    f"Group Name : {data['group_name']}\n"
+                    f"HSN Code   : {data['hsn_code']}\n"
+                    f"Count      : {len(data['styles'])}\n"
+                    f"Styles     : {', '.join(data['styles'])}"
+                )
+
+            frappe.log_error(
+                title=f"Missing Item Groups: ({len(missing_item_groups)})",
+                message="\n\n" + ("-" * 80) + "\n\n".join(message),
             )
 
         frappe.db.commit()
@@ -658,8 +685,14 @@ def get_attribute_value(attribute_name, value):
     attribute = frappe.get_doc("Item Attribute", attribute_name)
 
     for d in attribute.item_attribute_values:
-        if (d.attribute_value or "").strip().casefold() == value.casefold():
-            return d.attribute_value
+        attribute_value = (d.attribute_value or "").strip()
+        abbr = (d.abbr or "").strip()
+
+        if (
+            attribute_value.casefold() == value.casefold()
+            or abbr.casefold() == value.casefold()
+        ):
+            return attribute_value
 
     return value
 
