@@ -5,13 +5,28 @@
         if (!Scanner || Scanner.__cleanup_override) return;
         Scanner.__cleanup_override = true;
 
-        Scanner.prototype.clean_up = function () {
-            // console.log('override cleanup');
-            
-            refresh_field(this.items_table_name);
+        const original_process_scan = Scanner.prototype.process_scan;
+
+        Scanner.prototype.process_scan = async function (...args) {
+            this.__from_process_scan = true;
+
+            try {
+                return await original_process_scan.apply(this, args);
+            } finally {
+                this.__from_process_scan = false;
+            }
         };
 
-        // console.log("BarcodeScanner.clean_up overridden");
+        Scanner.prototype.clean_up = function () {
+            // Ignore cleanup unless called from process_scan
+            // console.log('custom cleanup');
+            
+            if (!this.__from_process_scan) {
+                return;
+            }
+
+            refresh_field(this.items_table_name);
+        };
     }
 
     function wait() {
