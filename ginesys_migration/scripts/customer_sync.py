@@ -326,13 +326,19 @@ def create_or_update_address(customer, data):
             },
         )
 
-    state_code = cstr(data.get("CP_GSTIN_STATE_CODE")).zfill(2)
+    # state_code = cstr(data.get("CP_GSTIN_STATE_CODE")).zfill(2)
+    state_code = cstr(data.get("CP_GSTIN_STATE_CODE")).strip()
+
+    if state_code:
+        state_code = state_code.zfill(2)
+
     address.address_title = customer.customer_name
     address.address_type = "Billing"
 
     address.address_line1 = cstr(data.get("ADDRESS")).strip()
     address.city = cstr(data.get("CTNAME")).strip()
-    address.state = GST_STATE_MAP.get(state_code)
+    address.state = GST_STATE_MAP.get(state_code, "Rajasthan")
+    # address.state = GST_STATE_MAP.get(state_code)
     address.pincode = cstr(data.get("PIN")).strip()
 
     if data.get("CP_GSTIN_NO"):
