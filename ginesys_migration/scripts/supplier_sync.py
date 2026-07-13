@@ -57,31 +57,35 @@ def supplier_sync(host="192.168.3.3", port=1521, limit=50):
         limit = min(cint(limit), 10000)
 
         sql = """
-        SELECT *
-        FROM (
-            SELECT
-                CODE,
-                NAME,
-                ADDRESS,
-                CTNAME,
-                PIN,
-                OPH1,
-                OPH2,
-                OPH3,
-                RPH1,
-                MOBILE,
-                FAX,
-                EMAIL1,
-                EMAIL2,
-                WEBSITE,
-                CONTACT_PERSON,
-                CP_GSTIN_NO,
-                CP_GSTIN_STATE_CODE
-            FROM ADMSITE
-            ORDER BY CODE
-        )
-        WHERE ROWNUM <= :limit
-        """
+            SELECT *
+            FROM (
+                SELECT
+                    f.SLCODE AS CODE,
+                    f.SLNAME AS NAME,
+                    f.BADDR AS ADDRESS,
+                    f.BCTNAME AS CTNAME,
+                    f.BPIN AS PIN,
+                    f.BPH1 AS MOBILE,
+                    f.BPH1 AS OPH1,
+                    f.BPH2 AS OPH2,
+                    f.BPH3 AS OPH3,
+                    f.BPH4 AS RPH1,
+                    f.BFX1 AS FAX,
+                    f.BEMAIL AS EMAIL1,
+                    f.BEMAIL2 AS EMAIL2,
+                    f.BWEBSITE AS WEBSITE,
+                    f.BCP AS CONTACT_PERSON,
+                    f.PAN,
+                    f.CP_GSTIN_NO,
+                    f.CP_GSTIN_STATE_CODE
+                FROM FINSL f
+                JOIN ADMCLS c
+                    ON f.CLSCODE = c.CLSCODE
+                WHERE UPPER(c.CLSNAME) = 'SUPPLIER'
+                ORDER BY f.SLCODE
+            )
+            WHERE ROWNUM <= :limit
+            """
 
         cursor.execute(sql, {"limit": limit})
 
@@ -193,6 +197,9 @@ def get_or_create_supplier(data):
 
     if data.get("CP_GSTIN_NO"):
         doc.gstin = cstr(data.get("CP_GSTIN_NO")).strip()
+
+    if cstr(data.get("PAN")).strip():
+        doc.pan = cstr(data.get("PAN")).strip()
 
     doc.save(ignore_permissions=True)
 
