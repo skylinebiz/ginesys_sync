@@ -94,9 +94,7 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
 
         # Process Records
         for row in rows:
-
             try:
-
                 (
                     grpcode,
                     last_changed,
@@ -123,15 +121,12 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                     continue
 
                 style_no = str(style_no).strip()
-
                 colour = str(colour or "").strip()
                 colour_code = str(colour_code or "").strip()
                 size = str(size or "").strip()
-
                 vendor_part_no = str(vendor_part_no or "").strip()
 
                 # Description
-
                 description = "\n".join(
                     str(x).strip()
                     for x in [
@@ -156,7 +151,6 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                 )
 
                 # Resolve Item Group
-
                 group_info = item_group_map.get(grpcode)
                 item_group = group_info.name
                 hsn_code = group_info.gst_hsn_code
@@ -219,7 +213,6 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                 # Update Item
 
                 item.description = description
-
                 item.custom_vendor_part_number = supplier_part_no
                 item.item_group = item_group
 
@@ -233,13 +226,14 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
 
                 # Remove duplicates while preserving order
                 new_barcodes = list(dict.fromkeys(new_barcodes))
-
                 existing_barcodes = [
                     d.barcode
                     for d in item.barcodes
                 ]
 
                 if existing_barcodes != new_barcodes:
+                    for b in new_barcodes:
+                        move_barcode_to_item(b, item)
 
                     item.set("barcodes", [])
 
@@ -696,38 +690,47 @@ def get_attribute_value(attribute_name, value):
 
     return value
 
-# Utility
-
-# def safe_str(value):
-#     if value is None:
-#         return ""
-
-#     return str(value).strip()
-
-
-# def build_description(*values):
-#     return "\n".join(
-#         safe_str(v)
-#         for v in values
-#         if safe_str(v)
-#     )
-
-
-# def build_vendor_part_no(vendor_part, colour, size):
-#     return " ".join(
-#         safe_str(v)
-#         for v in [
-#             vendor_part,
-#             colour,
-#             size,
-#         ]
-#         if safe_str(v)
-#     )
-
 
 # Logger
 def log_sync_error(title, exc=None):
     frappe.log_error(
         title=title,
         message=exc or frappe.get_traceback(),
+    )
+
+
+# Utility
+def move_barcode_to_item(barcode, new_item):
+    if not barcode:
+        return
+
+    barcode = str(barcode).strip()
+
+    old_item_name = frappe.db.get_value(
+        "Item Barcode",
+        {"barcode": barcode},
+        "parent",
+    )
+
+    if not old_item_name or old_item_name == new_item.name:
+        return
+
+    old_item = frappe.get_doc("Item", old_item_name)
+
+    # Remove barcode from previous Item
+    old_item.set(
+        "barcodes",
+        [
+            row for row in old_item.barcodes
+            if row.barcode != barcode
+        ],
+    )
+
+    old_item.save(ignore_permissions=True)
+
+    frappe.db.commit()
+
+    print(
+        f"Barcode {barcode} moved: "
+        f"{old_item_name} -> {new_item.name}"
     )
