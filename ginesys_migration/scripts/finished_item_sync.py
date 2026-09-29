@@ -4,7 +4,11 @@ from frappe.utils import get_datetime, cint
 from erpnext.controllers.item_variant import create_variant
 from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_connection
 from erpnext.controllers.item_variant import get_variant
-from ginesys_migration.scripts.item_definition_sync import DEF_FIELDS, clean
+from ginesys_migration.scripts.item_definition_sync import (
+    get_definition_values,
+    format_too_long,
+    log_too_long,
+)
 
 COMMIT_EVERY = 500
 
@@ -91,6 +95,7 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
         synced = 0
         failed = 0
         failed_items = []
+        too_long_items = []
         missing_item_groups = {}
 
         # Process Records
@@ -218,11 +223,17 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                 item.item_group = item_group
 
                 # Definitions (DESC1..DESC6 -> custom_def_1..custom_def_6)
-                for field, desc in zip(
-                    DEF_FIELDS,
-                    [desc1, desc2, desc3, desc4, desc5, desc6],
-                ):
-                    item.set(field, clean(desc))
+                # Too-long values are left empty so the rest of the Item still saves
+                def_values, too_long = get_definition_values(
+                    [desc1, desc2, desc3, desc4, desc5, desc6]
+                )
+
+                item.update(def_values)
+
+                if too_long:
+                    too_long_items.append(
+                        format_too_long(item.name, icode, too_long)
+                    )
 
                 new_barcodes = []
 
@@ -325,6 +336,8 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                 title=f"Oracle Item Sync - {failed} Failed Item(s)",
                 message="\n\n".join(failed_items),
             )
+
+        log_too_long(too_long_items)
 
         if missing_item_groups:
             message = []

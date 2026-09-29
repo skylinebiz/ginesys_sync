@@ -99,6 +99,7 @@ def sync_item_definitions(host="192.168.3.3", port=1521, limit=500):
         unchanged = 0
         not_found = []
         failed_items = []
+        too_long_items = []
 
         # Process Records
 
@@ -136,10 +137,12 @@ def sync_item_definitions(host="192.168.3.3", port=1521, limit=500):
                     )
                     continue
 
-                new_values = {
-                    field: clean(desc)
-                    for field, desc in zip(DEF_FIELDS, descs)
-                }
+                new_values, too_long = get_definition_values(descs)
+
+                if too_long:
+                    too_long_items.append(
+                        format_too_long(item_code, icode, too_long)
+                    )
 
                 current = frappe.db.get_value(
                     "Item",
@@ -206,11 +209,14 @@ def sync_item_definitions(host="192.168.3.3", port=1521, limit=500):
                 message="\n\n".join(failed_items),
             )
 
+        log_too_long(too_long_items)
+
         frappe.db.commit()
 
         summary = (
             f"Updated: {updated} | Unchanged: {unchanged} | "
-            f"Not Found: {len(not_found)} | Failed: {len(failed_items)}"
+            f"Not Found: {len(not_found)} | Failed: {len(failed_items)} | "
+            f"Too Long: {len(too_long_items)}"
         )
 
         print(f"\nItem Description Sync Completed | {summary}")
@@ -300,3 +306,66 @@ def make_key(template, colour, colour_code, size):
 
 def clean(value):
     return str(value or "").strip()
+
+
+def get_definition_values(descs):
+    """
+    Map DESC1..DESC6 to custom_def_1..custom_def_6.
+
+    Values longer than the field allows are left empty so the rest of the Item
+    still saves. Returns (values, too_long) where too_long is
+    [(field, label, max_length, value)].
+    """
+
+    meta = frappe.get_meta("Item")
+
+    values = {}
+    too_long = []
+
+    for field, desc in zip(DEF_FIELDS, descs):
+        value = clean(desc)
+        df = meta.get_field(field)
+        max_length = get_max_length(df)
+
+        if max_length and len(value) > max_length:
+            too_long.append((field, df.label if df else field, max_length, value))
+            value = ""
+
+        values[field] = value
+
+    return values, too_long
+
+
+def get_max_length(df):
+    """Same limit Frappe enforces on save (BaseDocument._validate_length); 0 = no limit."""
+
+    if not df:
+        return 0
+
+    column_type, default_length = (frappe.db.type_map.get(df.fieldtype) or (None, None))[:2]
+
+    if column_type != "varchar":
+        return 0
+
+    return cint(df.length) or cint(default_length)
+
+
+def format_too_long(item_code, icode, too_long):
+    return "\n".join(
+        [f"Item : {item_code} (ICODE {icode})"]
+        + [
+            f"  {label} ({field}) - {len(value)}/{max_length} chars: {value}"
+            for field, label, max_length, value in too_long
+        ]
+    )
+
+
+def log_too_long(too_long_items):
+    if not too_long_items:
+        return
+
+    frappe.log_error(
+        title=f"Item Definition Too Long - {len(too_long_items)} Item(s)",
+        message="Left empty because value exceeds field length:\n\n"
+        + "\n\n".join(too_long_items),
+    )

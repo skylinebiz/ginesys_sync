@@ -45,7 +45,7 @@ GST_STATE_MAP = {
     "38": "Ladakh",
 }
 
-
+@frappe.whitelist()
 def supplier_sync(host="192.168.3.3", port=1521, limit=50):
     conn = None
     cursor = None
