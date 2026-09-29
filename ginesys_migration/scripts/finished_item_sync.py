@@ -4,6 +4,7 @@ from frappe.utils import get_datetime, cint
 from erpnext.controllers.item_variant import create_variant
 from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_connection
 from erpnext.controllers.item_variant import get_variant
+from ginesys_migration.scripts.item_definition_sync import DEF_FIELDS, clean
 
 COMMIT_EVERY = 500
 
@@ -215,6 +216,13 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                 item.description = description
                 item.custom_vendor_part_number = supplier_part_no
                 item.item_group = item_group
+
+                # Definitions (DESC1..DESC6 -> custom_def_1..custom_def_6)
+                for field, desc in zip(
+                    DEF_FIELDS,
+                    [desc1, desc2, desc3, desc4, desc5, desc6],
+                ):
+                    item.set(field, clean(desc))
 
                 new_barcodes = []
 
