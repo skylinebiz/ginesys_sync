@@ -6,6 +6,7 @@ from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_conn
 from erpnext.controllers.item_variant import get_variant
 from ginesys_migration.scripts.sync_item_groups import ensure_hsn_code
 from ginesys_migration.scripts.item_definition_sync import (
+    DEF_FIELDS,
     get_definition_values,
     format_too_long,
     log_too_long,
@@ -131,7 +132,7 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                     material_type,
                 ) = row
 
-                cnames = [style_no, colour, size, colour_code, vendor_part_no, cname6]
+                cnames = [style_no, colour, size, colour_code, vendor_part_no]
 
                 style_no = str(style_no or "").strip()
                 colour = str(colour or "").strip()
@@ -192,9 +193,18 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                     )
 
                 # Definitions (DESC1..DESC6 -> custom_def_1..custom_def_6)
+                # Non-finished: CNAME6 -> custom_def_7
                 # Too-long values are left empty so the rest of the Item still saves
+                def_fields = DEF_FIELDS
+                def_sources = [desc1, desc2, desc3, desc4, desc5, desc6]
+
+                if not is_finished:
+                    def_fields = DEF_FIELDS + ["custom_def_7"]
+                    def_sources = def_sources + [cname6]
+
                 def_values, too_long = get_definition_values(
-                    [desc1, desc2, desc3, desc4, desc5, desc6]
+                    def_sources,
+                    fields=def_fields,
                 )
 
                 item.update(def_values)
@@ -487,7 +497,7 @@ def sync_finished_item(
 
 
 # Non-finished Item (MATERIAL_TYPE != 'F'): plain Item keyed by ICODE (no variant),
-# CNAME1-6 joined as item name
+# CNAME1-5 joined as item name
 def sync_non_finished_item(icode, cnames, item_group, hsn_code):
     item_name = " ".join(
         str(x).strip()

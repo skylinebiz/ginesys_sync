@@ -308,9 +308,9 @@ def clean(value):
     return str(value or "").strip()
 
 
-def get_definition_values(descs):
+def get_definition_values(descs, fields=DEF_FIELDS):
     """
-    Map DESC1..DESC6 to custom_def_1..custom_def_6.
+    Map DESC1..DESC6 to custom_def_1..custom_def_6 (or `descs` to `fields`).
 
     Values longer than the field allows are left empty so the rest of the Item
     still saves. Returns (values, too_long) where too_long is
@@ -322,7 +322,7 @@ def get_definition_values(descs):
     values = {}
     too_long = []
 
-    for field, desc in zip(DEF_FIELDS, descs):
+    for field, desc in zip(fields, descs):
         value = clean(desc)
         df = meta.get_field(field)
         max_length = get_max_length(df)
