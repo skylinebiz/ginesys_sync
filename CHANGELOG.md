@@ -2,6 +2,26 @@
 
 All notable changes to the Ginesys Migration app are documented in this file.
 
+## [1.2.0] - 2026-09-30
+
+### Added
+
+- **Item Sync — non-finished items** — the item sync no longer filters `INVITEM` on `MATERIAL_TYPE = 'F'`; every material type is fetched and handled per row. Rows whose `MATERIAL_TYPE` is not `F` are synced as plain Items (no template / variant):
+  - Item code is `ICODE`; rows without an ICODE are skipped.
+  - Item name is `CNAME1`–`CNAME6` joined with spaces (empty ones skipped, cut to 140 characters), falling back to the ICODE. Description is left to ERPNext's default.
+  - Price goes to a buying price list **Cost Price** (created if missing): MRP, or WSP when MRP is empty / 0. No MRP / WSP selling prices are created for these items.
+  - HSN/SAC is taken from the Item Group; when the group has none, the Item gets `520829` (the GST HSN Code record is created if missing). Item Groups themselves are not changed.
+  - Definitions (`DESC1`–`DESC6` → `custom_def_1`–`custom_def_6`) and barcodes (ICODE, BARCODE) are synced the same way as for finished items.
+
+### Changed
+
+- **Item Sync — finished items** (`MATERIAL_TYPE = 'F'`) — behaviour unchanged; the template / variant logic moved into its own `sync_finished_item` function. Item Groups without an HSN/SAC code are still reported under "Missing Item Groups" and those items skipped.
+- **Item Sync** — the failed-item Error Log now also shows the ICODE and material type.
+
+### Fixed
+
+- **Item Sync** — a row whose Item Group doesn't exist in ERPNext crashed with an `AttributeError` before it could be recorded; it's now correctly counted and listed under "Missing Item Groups".
+
 ## [1.1.0] - 2026-09-29
 
 ### Added
