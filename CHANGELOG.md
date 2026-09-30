@@ -8,10 +8,10 @@ All notable changes to the Ginesys Migration app are documented in this file.
 
 - **Item Sync — non-finished items** — the item sync no longer filters `INVITEM` on `MATERIAL_TYPE = 'F'`; every material type is fetched and handled per row. Rows whose `MATERIAL_TYPE` is not `F` are synced as plain Items (no template / variant):
   - Item code is `ICODE`; rows without an ICODE are skipped.
-  - Item name is `CNAME1`–`CNAME6` joined with spaces (empty ones skipped, cut to 140 characters), falling back to the ICODE. Description is left to ERPNext's default.
+  - Item name is `CNAME1`–`CNAME5` joined with spaces (empty ones skipped, cut to 140 characters), falling back to the ICODE. Description is left to ERPNext's default.
   - Price goes to a buying price list **Cost Price** (created if missing): MRP, or WSP when MRP is empty / 0. No MRP / WSP selling prices are created for these items.
   - HSN/SAC is taken from the Item Group; when the group has none, the Item gets `520829` (the GST HSN Code record is created if missing). Item Groups themselves are not changed.
-  - Definitions (`DESC1`–`DESC6` → `custom_def_1`–`custom_def_6`) and barcodes (ICODE, BARCODE) are synced the same way as for finished items.
+  - Definitions: `DESC1`–`DESC6` → `custom_def_1`–`custom_def_6` as for finished items, plus `CNAME6` → `custom_def_7`. Barcodes (ICODE, BARCODE) are synced the same way as for finished items.
 
 ### Changed
 
