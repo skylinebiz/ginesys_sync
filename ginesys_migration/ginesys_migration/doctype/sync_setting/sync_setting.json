@@ -7,6 +7,7 @@
  "field_order": [
   "last_sync",
   "last_item_sync",
+  "last_item_desc_sync",
   "last_customer_sync",
   "last_item_group_sync",
   "last_supplier_sync"
@@ -21,6 +22,11 @@
    "fieldname": "last_item_sync",
    "fieldtype": "Datetime",
    "label": "Last Item Sync"
+  },
+  {
+   "fieldname": "last_item_desc_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Item Description Sync"
   },
   {
    "fieldname": "last_customer_sync",
@@ -42,7 +48,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-01 16:51:12.055300",
+ "modified": "2026-09-28 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Ginesys Migration",
  "name": "Sync Setting",

@@ -1,11 +1,21 @@
 import frappe
 from datetime import datetime, timedelta
-from frappe.utils import get_datetime, cint
+from frappe.utils import get_datetime, cint, flt
 from erpnext.controllers.item_variant import create_variant
 from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_connection
 from erpnext.controllers.item_variant import get_variant
+from ginesys_migration.scripts.sync_item_groups import ensure_hsn_code
+from ginesys_migration.scripts.item_definition_sync import (
+    DEF_FIELDS,
+    get_definition_values,
+    format_too_long,
+    log_too_long,
+)
 
 COMMIT_EVERY = 500
+COST_PRICE_LIST = "Cost Price"
+# HSN for non-finished Items whose Item Group has no HSN/SAC
+DEFAULT_NON_FINISHED_HSN = "520829"
 
 @frappe.whitelist()
 def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
@@ -52,6 +62,7 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                 CNAME3,
                 CNAME4,
                 CNAME5,
+                CNAME6,
                 DESC1,
                 DESC2,
                 DESC3,
@@ -61,10 +72,10 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                 MRP,
                 WSP,
                 ICODE,
-                BARCODE
+                BARCODE,
+                MATERIAL_TYPE
             FROM INVITEM
             WHERE LAST_CHANGED >= :sync_from
-            AND MATERIAL_TYPE = 'F'
             ORDER BY LAST_CHANGED
         )
         WHERE ROWNUM <= :limit
@@ -90,13 +101,15 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
         synced = 0
         failed = 0
         failed_items = []
+        too_long_items = []
         missing_item_groups = {}
 
         # Process Records
         for row in rows:
+            style_no = colour = colour_code = size = icode = material_type = ""
+            item_group = hsn_code = ""
 
             try:
-
                 (
                     grpcode,
                     last_changed,
@@ -105,6 +118,7 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                     size,
                     colour_code,
                     vendor_part_no,
+                    cname6,
                     desc1,
                     desc2,
                     desc3,
@@ -114,114 +128,91 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                     mrp,
                     wsp,
                     icode,
-                    barcode
+                    barcode,
+                    material_type,
                 ) = row
 
-                # Validation
+                cnames = [style_no, colour, size, colour_code, vendor_part_no]
 
-                if not style_no:
-                    continue
-
-                style_no = str(style_no).strip()
-
+                style_no = str(style_no or "").strip()
                 colour = str(colour or "").strip()
                 colour_code = str(colour_code or "").strip()
                 size = str(size or "").strip()
-
                 vendor_part_no = str(vendor_part_no or "").strip()
+                icode = str(icode or "").strip()
+                material_type = str(material_type or "").strip().upper()
 
-                # Description
+                is_finished = material_type == "F"
 
-                description = "\n".join(
-                    str(x).strip()
-                    for x in [
-                        desc1,
-                        desc2,
-                        desc3,
-                        desc4,
-                        desc5,
-                        desc6,
-                    ]
-                    if x
-                )
+                # Validation
 
-                supplier_part_no = " ".join(
-                    str(x).strip()
-                    for x in [
-                        vendor_part_no,
-                        colour,
-                        size,
-                    ]
-                    if x
-                )
+                if is_finished and not style_no:
+                    continue
+
+                if not is_finished and not icode:
+                    continue
 
                 # Resolve Item Group
-
                 group_info = item_group_map.get(grpcode)
-                item_group = group_info.name
-                hsn_code = group_info.gst_hsn_code
 
-                if not group_info:
+                # Finished items still require an HSN on the Item Group
+                if not group_info or (is_finished and not group_info.gst_hsn_code):
                     failed += 1
 
                     missing_item_groups.setdefault(
                         grpcode,
                         {
-                            "group_name": item_group if 'item_group' in locals() else "",
-                            "hsn_code": hsn_code if 'hsn_code' in locals() else "",
+                            "group_name": "",
+                            "hsn_code": "",
                             "styles": [],
                         },
-                    )["styles"].append(style_no)
+                    )["styles"].append(style_no if is_finished else icode)
 
                     continue
 
+                item_group = group_info.name
+                hsn_code = group_info.gst_hsn_code
 
-                # Ensure Item Attributes
+                if is_finished:
+                    item = sync_finished_item(
+                        style_no=style_no,
+                        colour=colour,
+                        colour_code=colour_code,
+                        size=size,
+                        vendor_part_no=vendor_part_no,
+                        descs=[desc1, desc2, desc3, desc4, desc5, desc6],
+                        item_group=item_group,
+                    )
+                else:
+                    # Non-finished material: plain Item (no variant), keyed by ICODE
+                    item = sync_non_finished_item(
+                        icode=icode,
+                        cnames=cnames,
+                        item_group=item_group,
+                        hsn_code=hsn_code or DEFAULT_NON_FINISHED_HSN,
+                    )
 
-                ensure_item_attribute("Colour")
-                ensure_item_attribute("Colour Code")
-                ensure_item_attribute("Size")
+                # Definitions (DESC1..DESC6 -> custom_def_1..custom_def_6)
+                # Non-finished: CNAME6 -> custom_def_7
+                # Too-long values are left empty so the rest of the Item still saves
+                def_fields = DEF_FIELDS
+                def_sources = [desc1, desc2, desc3, desc4, desc5, desc6]
 
-                # Ensure Attribute Values
+                if not is_finished:
+                    def_fields = DEF_FIELDS + ["custom_def_7"]
+                    def_sources = def_sources + [cname6]
 
-                ensure_attribute_value(
-                    "Colour",
-                    colour,
+                def_values, too_long = get_definition_values(
+                    def_sources,
+                    fields=def_fields,
                 )
 
-                ensure_attribute_value(
-                    "Colour Code",
-                    colour_code,
-                )
+                item.update(def_values)
 
-                ensure_attribute_value(
-                    "Size",
-                    size,
-                )
-
-                # Template
-
-                template = ensure_template(
-                    style_no=style_no,
-                    item_group=item_group,
-                )
-
-                # Variant
-
-                item = ensure_variant(
-                    template=template,
-                    colour=colour,
-                    colour_code=colour_code,
-                    size=size,
-                    item_group=item_group,
-                )
-
-                # Update Item
-
-                item.description = description
-
-                item.custom_vendor_part_number = supplier_part_no
-                item.item_group = item_group
+                if too_long:
+                    too_long_items.append(
+                        format_too_long(item.name, icode, too_long)
+                    )
 
                 new_barcodes = []
 
@@ -233,13 +224,14 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
 
                 # Remove duplicates while preserving order
                 new_barcodes = list(dict.fromkeys(new_barcodes))
-
                 existing_barcodes = [
                     d.barcode
                     for d in item.barcodes
                 ]
 
                 if existing_barcodes != new_barcodes:
+                    for b in new_barcodes:
+                        move_barcode_to_item(b, item)
 
                     item.set("barcodes", [])
 
@@ -253,24 +245,35 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
 
                 item.save(ignore_permissions=True)
 
-                # Price Lists
+                if is_finished:
+                    # Price Lists
 
-                ensure_price_list("MRP")
-                ensure_price_list("WSP")
+                    ensure_price_list("MRP")
+                    ensure_price_list("WSP")
 
-                # Prices
+                    # Prices
 
-                update_price(
-                    item.name,
-                    "MRP",
-                    mrp,
-                )
+                    update_price(
+                        item.name,
+                        "MRP",
+                        mrp,
+                    )
 
-                update_price(
-                    item.name,
-                    "WSP",
-                    wsp,
-                )
+                    update_price(
+                        item.name,
+                        "WSP",
+                        wsp,
+                    )
+                else:
+                    # Non-finished: MRP (or WSP when MRP is empty/0) goes to
+                    # the buying "Cost Price" list
+                    ensure_price_list(COST_PRICE_LIST, buying=1, selling=0)
+
+                    update_price(
+                        item.name,
+                        COST_PRICE_LIST,
+                        mrp if flt(mrp) > 0 else wsp,
+                    )
 
                 synced += 1
 
@@ -290,10 +293,12 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
             except Exception:
 
                 failed += 1
-                print(f"Sync Error : {style_no}")
+                print(f"Sync Error : {style_no or icode}")
 
                 failed_items.append(
                     "\n".join([
+                        f"ICODE       : {icode}",
+                        f"Material    : {material_type}",
                         f"Style No    : {style_no}",
                         f"Item Group  : {item_group}",
                         f"HSN         : {hsn_code}",
@@ -323,6 +328,8 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
                 title=f"Oracle Item Sync - {failed} Failed Item(s)",
                 message="\n\n".join(failed_items),
             )
+
+        log_too_long(too_long_items)
 
         if missing_item_groups:
             message = []
@@ -392,7 +399,9 @@ def get_item_group_map(cursor):
             as_dict=True,
         )
 
-        if item_group and item_group.gst_hsn_code:
+        # Groups without HSN are kept too: finished items skip them (see caller),
+        # non-finished items fall back to DEFAULT_NON_FINISHED_HSN
+        if item_group:
             group_map[grpcode] = item_group
 
     return group_map
@@ -423,6 +432,97 @@ def get_item_group(cursor, grpcode):
     )
 
     return item_group
+
+
+# Finished Item (MATERIAL_TYPE = 'F'): Style No template + Colour / Colour Code / Size variant
+def sync_finished_item(
+    style_no,
+    colour,
+    colour_code,
+    size,
+    vendor_part_no,
+    descs,
+    item_group,
+):
+    # Ensure Item Attributes
+
+    ensure_item_attribute("Colour")
+    ensure_item_attribute("Colour Code")
+    ensure_item_attribute("Size")
+
+    # Ensure Attribute Values
+
+    ensure_attribute_value("Colour", colour)
+    ensure_attribute_value("Colour Code", colour_code)
+    ensure_attribute_value("Size", size)
+
+    # Template
+
+    template = ensure_template(
+        style_no=style_no,
+        item_group=item_group,
+    )
+
+    # Variant
+
+    item = ensure_variant(
+        template=template,
+        colour=colour,
+        colour_code=colour_code,
+        size=size,
+        item_group=item_group,
+    )
+
+    # Update Item
+
+    item.description = "\n".join(
+        str(x).strip()
+        for x in descs
+        if x
+    )
+
+    item.custom_vendor_part_number = " ".join(
+        str(x).strip()
+        for x in [
+            vendor_part_no,
+            colour,
+            size,
+        ]
+        if x
+    )
+
+    item.item_group = item_group
+
+    return item
+
+
+# Non-finished Item (MATERIAL_TYPE != 'F'): plain Item keyed by ICODE (no variant),
+# CNAME1-5 joined as item name
+def sync_non_finished_item(icode, cnames, item_group, hsn_code):
+    item_name = " ".join(
+        str(x).strip()
+        for x in cnames
+        if x and str(x).strip()
+    )
+
+    if frappe.db.exists("Item", icode):
+        item = frappe.get_doc("Item", icode)
+    else:
+        item = frappe.get_doc(
+            {
+                "doctype": "Item",
+                "item_code": icode,
+                "stock_uom": "Nos",
+            }
+        )
+
+    # Item Name is a 140-char Data field
+    item.item_name = (item_name or icode)[:140]
+    item.item_group = item_group
+    item.gst_hsn_code = ensure_hsn_code(hsn_code)
+
+    # Saved (inserted if new) by the caller along with definitions and barcodes
+    return item
 
 
 # Item Attribute
@@ -607,7 +707,7 @@ def ensure_variant(
 
 
 # Price List
-def ensure_price_list(price_list_name):
+def ensure_price_list(price_list_name, buying=0, selling=1):
 
     if frappe.db.exists("Price List", price_list_name):
         return price_list_name
@@ -617,8 +717,8 @@ def ensure_price_list(price_list_name):
             "doctype": "Price List",
             "price_list_name": price_list_name,
             "enabled": 1,
-            "selling": 1,
-            "buying": 0,
+            "selling": selling,
+            "buying": buying,
             "currency": frappe.defaults.get_global_default("currency") or "INR",
         }
     )
@@ -696,38 +796,47 @@ def get_attribute_value(attribute_name, value):
 
     return value
 
-# Utility
-
-# def safe_str(value):
-#     if value is None:
-#         return ""
-
-#     return str(value).strip()
-
-
-# def build_description(*values):
-#     return "\n".join(
-#         safe_str(v)
-#         for v in values
-#         if safe_str(v)
-#     )
-
-
-# def build_vendor_part_no(vendor_part, colour, size):
-#     return " ".join(
-#         safe_str(v)
-#         for v in [
-#             vendor_part,
-#             colour,
-#             size,
-#         ]
-#         if safe_str(v)
-#     )
-
 
 # Logger
 def log_sync_error(title, exc=None):
     frappe.log_error(
         title=title,
         message=exc or frappe.get_traceback(),
+    )
+
+
+# Utility
+def move_barcode_to_item(barcode, new_item):
+    if not barcode:
+        return
+
+    barcode = str(barcode).strip()
+
+    old_item_name = frappe.db.get_value(
+        "Item Barcode",
+        {"barcode": barcode},
+        "parent",
+    )
+
+    if not old_item_name or old_item_name == new_item.name:
+        return
+
+    old_item = frappe.get_doc("Item", old_item_name)
+
+    # Remove barcode from previous Item
+    old_item.set(
+        "barcodes",
+        [
+            row for row in old_item.barcodes
+            if row.barcode != barcode
+        ],
+    )
+
+    old_item.save(ignore_permissions=True)
+
+    frappe.db.commit()
+
+    print(
+        f"Barcode {barcode} moved: "
+        f"{old_item_name} -> {new_item.name}"
     )

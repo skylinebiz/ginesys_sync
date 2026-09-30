@@ -8,7 +8,7 @@ app_license = "mit"
 # Apps
 # ------------------
 
-required_apps = ["erpnext"]
+required_apps = ["erpnext", "ec"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
@@ -26,7 +26,7 @@ required_apps = ["erpnext"]
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/ginesys_migration/css/ginesys_migration.css"
-# app_include_js = "/assets/ginesys_migration/js/ginesys_migration.js"
+# app_include_js = "/assets/ginesys_migration/js/barcode_scanner_override.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/ginesys_migration/css/ginesys_migration.css"
