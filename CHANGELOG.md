@@ -2,6 +2,21 @@
 
 All notable changes to the Ginesys Migration app are documented in this file.
 
+## [1.3.0] - 2026-10-05
+
+### Added
+
+- **Ginesys Sync Setting** — new single doctype holding the Ginesys server connection (Server IP, Port, Username, Password), the Sync Type to run and the Limit (how many records to sync, default 1000). System Manager only; the password is stored encrypted.
+- **Sync button** — on Ginesys Sync Setting, runs the selected Sync Type (Item, Item Group, Item Definition, Customer or Supplier) as a background job, syncing up to the Limit. A Limit above 1000 is synced 1000 records at a time with a 10 second wait after every 1000. Item Group ignores the Limit and syncs everything in a single run. A progress dialog shows the batch number and records done (it comes back if the page is reloaded mid-sync), and a "Success" message with the batch / synced / failed counts is shown on completion; a failure shows the error instead. Only one sync can run at a time.
+- **Test Connection button** — checks that the saved settings can connect to Ginesys.
+- **Customer Sync / Supplier Sync** — new optional `offset` argument (rows to skip, ordered by `SLCODE`), so these syncs can be run in batches. Without it they behave as before.
+
+### Changed
+
+- **All sync scripts** — the Ginesys connection now comes from Ginesys Sync Setting. Scripts can still be run from the console with `host`, `port` and `limit` arguments; `host` / `port` override the settings, and when neither is given the previous built-in defaults are used.
+- **Sync Setting timestamps** — Item Group, Customer and Supplier syncs now record when they last completed in `last_item_group_sync`, `last_customer_sync` and `last_supplier_sync` (Item and Item Definition already saved theirs). `last_sync` is set whenever a sync started from the Sync button completes.
+- **All sync scripts** — now return the run's `fetched` / `synced` / `failed` counts.
+
 ## [1.2.0] - 2026-09-30
 
 ### Added
