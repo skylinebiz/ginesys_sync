@@ -5,7 +5,7 @@ from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_conn
 
 
 @frappe.whitelist()
-def test_ginesys_connection(host="192.168.3.3", port=1521):
+def test_ginesys_connection(host=None, port=None):
     """
     Test Oracle connection and fetch first 10 records from INVITEM
     """
@@ -16,7 +16,7 @@ def test_ginesys_connection(host="192.168.3.3", port=1521):
     try:
         conn = get_ginesys_connection(
             host=host,
-            port=int(port),
+            port=port,
         )
         cursor = conn.cursor()
 

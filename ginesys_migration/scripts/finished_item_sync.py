@@ -18,7 +18,7 @@ COST_PRICE_LIST = "Cost Price"
 DEFAULT_NON_FINISHED_HSN = "520829"
 
 @frappe.whitelist()
-def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
+def sync_finished_item_data(host=None, port=None, limit=50):
 
     conn = None
     cursor = None
@@ -26,7 +26,7 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
     try:
         conn = get_ginesys_connection(
             host=host,
-            port=int(port),
+            port=port,
         )
         cursor = conn.cursor()
 
@@ -93,7 +93,7 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
 
         if not rows:
             frappe.msgprint("No records to sync.")
-            return
+            return {"fetched": 0, "synced": 0, "failed": 0}
 
         print(f"{len(rows)} records fetched from Oracle.")
 
@@ -360,6 +360,8 @@ def sync_finished_item_data(host="192.168.3.3", port=1521, limit=50):
             Failed : {failed}
             """
         )
+
+        return {"fetched": len(rows), "synced": synced, "failed": failed}
 
     except Exception:
 

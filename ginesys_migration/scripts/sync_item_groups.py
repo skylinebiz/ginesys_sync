@@ -1,6 +1,7 @@
 # scripts/sync_item_groups.py
 
 import frappe
+from frappe.utils import now_datetime
 from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_connection
 
 
@@ -60,7 +61,7 @@ def create_group(group_name, parent, grpcode, hsn_code=None, is_group=1):
 
 
 @frappe.whitelist()
-def sync_item_groups(host="192.168.3.3", port=1521):
+def sync_item_groups(host=None, port=None):
 
     ROOT_GROUP = "EC Item Group"
 
@@ -74,7 +75,7 @@ def sync_item_groups(host="192.168.3.3", port=1521):
 
     conn = get_ginesys_connection(
         host=host,
-        port=int(port),
+        port=port,
     )
     cursor = conn.cursor()
 
@@ -170,9 +171,17 @@ def sync_item_groups(host="192.168.3.3", port=1521):
                 is_group=0,
             )
 
+        frappe.db.set_single_value(
+            "Sync Setting",
+            "last_item_group_sync",
+            now_datetime(),
+        )
+
         frappe.db.commit()
 
         print("Item Group sync completed")
+
+        return {"fetched": len(rows), "synced": len(rows), "failed": 0}
 
     except Exception:
         frappe.db.rollback()
