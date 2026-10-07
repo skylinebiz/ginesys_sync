@@ -17,7 +17,7 @@ SETTINGS_DOCTYPE = "Ginesys Sync Setting"
 SYNC_JOB_ID = "ginesys_sync"
 SYNC_EVENT = "ginesys_sync"
 SYNC_STATUS_KEY = "ginesys_sync_status"
-SYNC_TIMEOUT = 12 * 60 * 60
+SYNC_TIMEOUT = 6 * 60 * 60
 
 # Records synced per batch, and the pause after each batch before the next one
 BATCH_SIZE = 1000
@@ -129,6 +129,7 @@ def start_sync(sync_type):
 		deduplicate=True,
 		sync_type=sync_type,
 		user=frappe.session.user,
+		at_front=True
 	)
 
 	return get_sync_status()
