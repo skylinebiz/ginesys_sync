@@ -10,7 +10,7 @@ DEF_FIELDS = [f"custom_def_{i}" for i in range(1, 7)]
 
 
 @frappe.whitelist()
-def sync_item_definitions(host="192.168.3.3", port=1521, limit=500):
+def sync_item_definitions(host=None, port=None, limit=500):
     """
     Copy DESC1-DESC6 of Ginesys finished items (INVITEM) into custom_def_1-6
     of the matching ERPNext Item variant.
@@ -27,7 +27,7 @@ def sync_item_definitions(host="192.168.3.3", port=1521, limit=500):
     try:
         conn = get_ginesys_connection(
             host=host,
-            port=int(port),
+            port=port,
         )
         cursor = conn.cursor()
 
@@ -89,7 +89,7 @@ def sync_item_definitions(host="192.168.3.3", port=1521, limit=500):
 
         if not rows:
             frappe.msgprint("No records to sync.")
-            return
+            return {"fetched": 0, "synced": 0, "failed": 0}
 
         print(f"{len(rows)} records fetched from Oracle.")
 
@@ -222,6 +222,8 @@ def sync_item_definitions(host="192.168.3.3", port=1521, limit=500):
         print(f"\nItem Description Sync Completed | {summary}")
 
         frappe.msgprint(f"Item Description Sync Completed<br>{summary}")
+
+        return {"fetched": len(rows), "synced": updated, "failed": len(failed_items)}
 
     except Exception:
 

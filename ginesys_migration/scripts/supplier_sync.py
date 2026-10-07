@@ -1,6 +1,6 @@
 
 import frappe
-from frappe.utils import cstr, cint
+from frappe.utils import cstr, cint, now_datetime
 from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_connection
 
 
@@ -46,19 +46,23 @@ GST_STATE_MAP = {
 }
 
 @frappe.whitelist()
-def supplier_sync(host="192.168.3.3", port=1521, limit=50):
+def supplier_sync(host=None, port=None, limit=50, offset=0):
     conn = None
     cursor = None
 
     try:
-        conn = get_ginesys_connection(host=host, port=int(port))
+        conn = get_ginesys_connection(host=host, port=port)
         cursor = conn.cursor()
 
         limit = min(cint(limit), 10000)
+        # Rows to skip (ordered by SLCODE), so the sync can run in batches
+        offset = max(cint(offset), 0)
 
         sql = """
             SELECT *
             FROM (
+                SELECT t.*, ROWNUM AS RN
+                FROM (
                 SELECT
                     f.SLCODE AS CODE,
                     f.SLNAME AS NAME,
@@ -83,18 +87,20 @@ def supplier_sync(host="192.168.3.3", port=1521, limit=50):
                     ON f.CLSCODE = c.CLSCODE
                 WHERE UPPER(c.CLSNAME) = 'SUPPLIER'
                 ORDER BY f.SLCODE
+                ) t
+                WHERE ROWNUM <= :last_row
             )
-            WHERE ROWNUM <= :limit
+            WHERE RN > :offset
             """
 
-        cursor.execute(sql, {"limit": limit})
+        cursor.execute(sql, {"last_row": offset + limit, "offset": offset})
 
         columns = [d[0] for d in cursor.description]
         rows = cursor.fetchall()
 
         if not rows:
             frappe.msgprint("No suppliers to sync.")
-            return
+            return {"fetched": 0, "synced": 0, "failed": 0}
 
         print(f"Found {len(rows)} suppliers.")
 
@@ -147,6 +153,16 @@ def supplier_sync(host="192.168.3.3", port=1521, limit=50):
             )
 
         print(f"\nSync Completed | Success: {synced} | Failed: {failed}")
+
+        frappe.db.set_single_value(
+            "Sync Setting",
+            "last_supplier_sync",
+            now_datetime(),
+        )
+
+        frappe.db.commit()
+
+        return {"fetched": len(rows), "synced": synced, "failed": failed}
 
     except Exception:
         frappe.db.rollback()

@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import cstr, cint
+from frappe.utils import cstr, cint, now_datetime
 from frappe.contacts.doctype.contact.contact import get_contact_name
 from frappe.contacts.doctype.address.address import get_address_display
 import traceback
@@ -48,7 +48,7 @@ GST_STATE_MAP = {
 }
 
 @frappe.whitelist()
-def customer_sync(host="192.168.3.3", port=1521, limit=50):
+def customer_sync(host=None, port=None, limit=50, offset=0):
 
     conn = None
     cursor = None
@@ -56,18 +56,22 @@ def customer_sync(host="192.168.3.3", port=1521, limit=50):
     try:
         conn = get_ginesys_connection(
             host=host,
-            port=int(port),
+            port=port,
         )
 
         cursor = conn.cursor()
 
         limit = min(cint(limit), 10000)
+        # Rows to skip (ordered by SLCODE), so the sync can run in batches
+        offset = max(cint(offset), 0)
 
         PRINT_EVERY = max(1, limit // 10)
 
         sql = """
             SELECT *
             FROM (
+                SELECT t.*, ROWNUM AS RN
+                FROM (
                 SELECT
                     f.SLCODE AS CODE,
                     f.SLNAME AS NAME,
@@ -92,18 +96,20 @@ def customer_sync(host="192.168.3.3", port=1521, limit=50):
                     ON f.CLSCODE = c.CLSCODE
                 WHERE UPPER(c.CLSNAME) = 'CUSTOMER'
                 ORDER BY f.SLCODE
+                ) t
+                WHERE ROWNUM <= :last_row
             )
-            WHERE ROWNUM <= :limit
+            WHERE RN > :offset
             """
 
-        cursor.execute(sql, {"limit": limit})
+        cursor.execute(sql, {"last_row": offset + limit, "offset": offset})
 
         columns = [d[0] for d in cursor.description]
         rows = cursor.fetchall()
 
         if not rows:
             frappe.msgprint("No customers to sync.")
-            return
+            return {"fetched": 0, "synced": 0, "failed": 0}
 
         print(f"Found {len(rows)} customers.")
 
@@ -169,6 +175,16 @@ def customer_sync(host="192.168.3.3", port=1521, limit=50):
             Failed : {failed}
             """
         )
+
+        frappe.db.set_single_value(
+            "Sync Setting",
+            "last_customer_sync",
+            now_datetime(),
+        )
+
+        frappe.db.commit()
+
+        return {"fetched": len(rows), "synced": synced, "failed": failed}
 
     except Exception:
 
