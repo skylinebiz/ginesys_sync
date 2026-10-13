@@ -2,6 +2,12 @@
 
 All notable changes to the Ginesys Migration app are documented in this file.
 
+## [1.4.0] - 2026-10-13
+
+### Changed
+
+- **Size Item Attribute patch** — `size_attribute_use_abbreviation` renames the `Size` attribute values to their abbreviations (Extra Small → XS, Small → S, Medium → M, Large → L, Extra Large → XL) and updates the Item variants that use them. Ginesys sends sizes as XS / S / M / L / XL, so a value of "Large" with abbreviation "L" made a size "L" fail with "Abbreviation: L must appear only once". A value is left as it is when another value with that abbreviation already exists.
+
 ## [1.3.0] - 2026-10-05
 
 ### Added
