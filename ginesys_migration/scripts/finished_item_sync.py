@@ -13,15 +13,42 @@ from ginesys_migration.scripts.item_definition_sync import (
 )
 
 COMMIT_EVERY = 500
+# Frappe refuses a transaction with more than 200,000 writes (TooManyWritesError).
+# Items are heavy (Item Attribute / template / variant / prices / versions), so
+# commit on write count as well, whatever the number of rows or failures.
+MAX_WRITES_BEFORE_COMMIT = 20000
+ROW_SAVEPOINT = "finished_item_sync_row"
 COST_PRICE_LIST = "Cost Price"
 # HSN for non-finished Items whose Item Group has no HSN/SAC
 DEFAULT_NON_FINISHED_HSN = "520829"
 
 @frappe.whitelist()
-def sync_finished_item_data(host=None, port=None, limit=50):
+def sync_finished_item_data(host=None, port=None, limit=50, stop_on_error=False):
+    """
+    Sync Ginesys items changed since Sync Setting.last_item_sync, `limit` rows at a time.
+
+    stop_on_error: stop at the first row that fails. Everything before it is
+    committed, the failing row is rolled back and last_item_sync is set to that
+    row's LAST_CHANGED, so the next run starts at it again once the cause is fixed.
+    """
+
+    stop_on_error = cint(stop_on_error)
+
+    # Safety net: if a transaction ever gets near Frappe's 200,000 write limit,
+    # commit instead of raising TooManyWritesError and losing the whole run
+    auto_commit = frappe.db.auto_commit_on_many_writes
+    frappe.db.auto_commit_on_many_writes = True
 
     conn = None
     cursor = None
+    processed = 0
+
+    synced = 0
+    failed = 0
+    failed_items = []
+    too_long_items = []
+    missing_item_groups = {}
+    stopped_row = None
 
     try:
         conn = get_ginesys_connection(
@@ -98,18 +125,18 @@ def sync_finished_item_data(host=None, port=None, limit=50):
         print(f"{len(rows)} records fetched from Oracle.")
 
         item_group_map = get_item_group_map(cursor)
-        synced = 0
-        failed = 0
-        failed_items = []
-        too_long_items = []
-        missing_item_groups = {}
 
         # Process Records
         for row in rows:
             style_no = colour = colour_code = size = icode = material_type = ""
             item_group = hsn_code = ""
+            savepoint_set = False
 
             try:
+                # So a failing row can be undone without losing the rows before it
+                frappe.db.savepoint(ROW_SAVEPOINT)
+                savepoint_set = True
+
                 (
                     grpcode,
                     last_changed,
@@ -167,6 +194,10 @@ def sync_finished_item_data(host=None, port=None, limit=50):
                             "styles": [],
                         },
                     )["styles"].append(style_no if is_finished else icode)
+
+                    if stop_on_error:
+                        stopped_row = row
+                        break
 
                     continue
 
@@ -277,6 +308,13 @@ def sync_finished_item_data(host=None, port=None, limit=50):
 
                 synced += 1
 
+                if savepoint_set:
+                    try:
+                        frappe.db.release_savepoint(ROW_SAVEPOINT)
+                    except Exception:
+                        # A commit inside the sync already released it
+                        pass
+
                 # Commit
 
                 if synced and synced % COMMIT_EVERY == 0:
@@ -295,6 +333,16 @@ def sync_finished_item_data(host=None, port=None, limit=50):
                 failed += 1
                 print(f"Sync Error : {style_no or icode}")
 
+                # Undo this row only, so it can't leave a half-synced Item behind
+                # and the rows before it are kept
+                if savepoint_set:
+                    try:
+                        frappe.db.rollback(save_point=ROW_SAVEPOINT)
+                    except Exception:
+                        # A commit inside the row released the savepoint, so
+                        # only this row's writes are still pending
+                        frappe.db.rollback()
+
                 failed_items.append(
                     "\n".join([
                         f"ICODE       : {icode}",
@@ -311,8 +359,28 @@ def sync_finished_item_data(host=None, port=None, limit=50):
                     ])
                 )
 
-        # Save Sync Time
-        last_changed = get_datetime(rows[-1][1])
+                if stop_on_error:
+                    stopped_row = row
+                    break
+
+            finally:
+                # Runs for every row (synced, failed or skipped), so a run with many
+                # failures can't pile up writes until the transaction is refused
+                processed += 1
+
+                if (
+                    processed % COMMIT_EVERY == 0
+                    or frappe.db.transaction_writes >= MAX_WRITES_BEFORE_COMMIT
+                ):
+                    frappe.db.commit()
+
+        # Errors first, committed on their own: if saving the sync time or a later
+        # commit fails, they are still in the Error Log
+        log_run_errors(failed, failed_items, too_long_items, missing_item_groups)
+        frappe.db.commit()
+
+        # Save Sync Time (a stopped run resumes at the row that failed)
+        last_changed = get_datetime((stopped_row or rows[-1])[1])
 
         print("Last row timestamp:", last_changed)
         print("Saved in Sync Setting:", last_changed)
@@ -323,33 +391,15 @@ def sync_finished_item_data(host=None, port=None, limit=50):
             last_changed,
         )
 
-        if failed_items:
-            frappe.log_error(
-                title=f"Oracle Item Sync - {failed} Failed Item(s)",
-                message="\n\n".join(failed_items),
-            )
-
-        log_too_long(too_long_items)
-
-        if missing_item_groups:
-            message = []
-
-            for grpcode, data in sorted(missing_item_groups.items()):
-                message.append(
-                    f"Group Code : {grpcode}\n"
-                    f"Group Name : {data['group_name']}\n"
-                    f"HSN Code   : {data['hsn_code']}\n"
-                    f"Count      : {len(data['styles'])}\n"
-                    f"Styles     : {', '.join(data['styles'])}"
-                )
-
-            frappe.log_error(
-                title=f"Missing Item Groups: ({len(missing_item_groups)})",
-                message="\n\n" + ("-" * 80) + "\n\n".join(message),
-            )
-
         frappe.db.commit()
-        print(f"\nSync Completed | Success: {synced} | Failed: {failed}")
+
+        if stopped_row:
+            print(
+                f"\nSync Stopped at the first error | Success: {synced} | "
+                f"Failed row: {stopped_row[2] or stopped_row[16]}"
+            )
+        else:
+            print(f"\nSync Completed | Success: {synced} | Failed: {failed}")
 
         frappe.msgprint(
             f"""
@@ -361,26 +411,67 @@ def sync_finished_item_data(host=None, port=None, limit=50):
             """
         )
 
-        return {"fetched": len(rows), "synced": synced, "failed": failed}
+        return {
+            "fetched": len(rows),
+            "synced": synced,
+            "failed": failed,
+            "stopped": bool(stopped_row),
+        }
 
     except Exception:
+
+        traceback_text = frappe.get_traceback()
 
         frappe.db.rollback()
 
         frappe.log_error(
             title="Oracle Item Sync Failed",
-            message=frappe.get_traceback(),
+            message=traceback_text,
         )
+
+        # The rollback discards the run, but the per-item errors found so far are
+        # exactly what is needed to see what went wrong
+        log_run_errors(failed, failed_items, too_long_items, missing_item_groups)
+        frappe.db.commit()
 
         raise
 
     finally:
+
+        frappe.db.auto_commit_on_many_writes = auto_commit
 
         if cursor:
             cursor.close()
 
         if conn:
             conn.close()
+
+
+def log_run_errors(failed, failed_items, too_long_items, missing_item_groups):
+    if failed_items:
+        frappe.log_error(
+            title=f"Oracle Item Sync - {failed} Failed Item(s)",
+            message="\n\n".join(failed_items),
+        )
+
+    log_too_long(too_long_items)
+
+    if missing_item_groups:
+        message = []
+
+        for grpcode, data in sorted(missing_item_groups.items()):
+            message.append(
+                f"Group Code : {grpcode}\n"
+                f"Group Name : {data['group_name']}\n"
+                f"HSN Code   : {data['hsn_code']}\n"
+                f"Count      : {len(data['styles'])}\n"
+                f"Styles     : {', '.join(data['styles'])}"
+            )
+
+        frappe.log_error(
+            title=f"Missing Item Groups: ({len(missing_item_groups)})",
+            message="\n\n" + ("-" * 80) + "\n\n".join(message),
+        )
 
 
 def get_item_group_map(cursor):
