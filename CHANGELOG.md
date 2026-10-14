@@ -2,6 +2,18 @@
 
 All notable changes to the Ginesys Migration app are documented in this file.
 
+## [1.5.0] - 2026-10-14
+
+### Fixed
+
+- **Item sync — "Too many changes to database in single action"** — a run could pile up more than Frappe's 200,000 writes per transaction (each item writes Item Attribute, template, variant, prices and versions, and failed rows kept their partial writes), so the final save of `last_item_sync` raised `TooManyWritesError` and the whole run was rolled back. `last_item_sync` never moved, so the same items were fetched and failed again on every run. The sync now commits every 500 rows processed (synced, failed or skipped) and whenever a transaction passes 20,000 writes, and Frappe's `auto_commit_on_many_writes` is on for the run as a safety net.
+- **Item sync — errors lost on a failed run** — per-item errors, definitions that were too long and missing Item Groups are now written to the Error Log and committed before `last_item_sync` is saved, and also when the run fails and is rolled back. Previously they were logged last and were lost with the rollback.
+- **Item sync — failed rows** — a row that fails is rolled back on its own (savepoint), so it no longer leaves a half-synced Item to be committed with the rows after it.
+
+### Added
+
+- **`stop_on_error`** — `sync_finished_item_data(..., stop_on_error=True)` stops at the first row that fails: the rows before it are committed, the failing row is rolled back and logged, and `last_item_sync` is set to that row's `LAST_CHANGED`, so the next run resumes at it. Missing Item Group / HSN rows count as errors. Default is `False`; the Sync button is unchanged.
+
 ## [1.4.0] - 2026-10-13
 
 ### Changed
