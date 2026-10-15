@@ -23,6 +23,9 @@ SYNC_TIMEOUT = 6 * 60 * 60
 BATCH_SIZE = 1000
 WAIT_SECONDS = 10
 
+# Where a timestamp sync starts when it has never run (same default the scripts use)
+DEFAULT_SYNC_FROM = datetime(1970, 1, 1)
+
 PARTY_COUNT_SQL = """
 	SELECT COUNT(*)
 	FROM FINSL f
@@ -35,33 +38,30 @@ PARTY_COUNT_SQL = """
 #   timestamp - the script resumes from its Sync Setting timestamp (LAST_CHANGED)
 #   offset    - the script has no resume point, so batches are paged with `offset`
 #   once      - the script syncs everything in a single run
+# last_sync_field is the Sync Setting field the script saves when it has synced.
 SYNC_TYPES = {
 	"Item": {
 		"method": "ginesys_migration.scripts.finished_item_sync.sync_finished_item_data",
 		"mode": "timestamp",
 		"timestamp_field": "last_item_sync",
+		"last_sync_field": "last_item_sync",
 		"count_sql": "SELECT COUNT(*) FROM INVITEM WHERE LAST_CHANGED >= :sync_from",
 	},
 	"Item Group": {
 		"method": "ginesys_migration.scripts.sync_item_groups.sync_item_groups",
 		"mode": "once",
-	},
-	"Item Definition": {
-		"method": "ginesys_migration.scripts.item_definition_sync.sync_item_definitions",
-		"mode": "timestamp",
-		"timestamp_field": "last_item_desc_sync",
-		"count_sql": (
-			"SELECT COUNT(*) FROM INVITEM WHERE LAST_CHANGED >= :sync_from AND MATERIAL_TYPE = 'F'"
-		),
+		"last_sync_field": "last_item_group_sync",
 	},
 	"Customer": {
 		"method": "ginesys_migration.scripts.customer_sync.customer_sync",
 		"mode": "offset",
+		"last_sync_field": "last_customer_sync",
 		"count_sql": PARTY_COUNT_SQL.format(cls="CUSTOMER"),
 	},
 	"Supplier": {
 		"method": "ginesys_migration.scripts.supplier_sync.supplier_sync",
 		"mode": "offset",
+		"last_sync_field": "last_supplier_sync",
 		"count_sql": PARTY_COUNT_SQL.format(cls="SUPPLIER"),
 	},
 }
@@ -133,6 +133,26 @@ def start_sync(sync_type):
 	)
 
 	return get_sync_status()
+
+
+@frappe.whitelist()
+def get_sync_info(sync_type):
+	"""What the "Sync Ginesys Data" dialog on the list views shows before a sync starts."""
+
+	frappe.only_for("System Manager")
+
+	if sync_type not in SYNC_TYPES:
+		frappe.throw(_("Please select a valid Sync Type."))
+
+	config = SYNC_TYPES[sync_type]
+
+	return {
+		"sync_type": sync_type,
+		"mode": config["mode"],
+		"last_sync": frappe.db.get_single_value("Sync Setting", config["last_sync_field"], cache=False),
+		"default_from": str(DEFAULT_SYNC_FROM),
+		"limit": cint(frappe.db.get_single_value(SETTINGS_DOCTYPE, "sync_limit", cache=False)) or BATCH_SIZE,
+	}
 
 
 @frappe.whitelist()
@@ -281,7 +301,7 @@ def count_pending(config):
 
 	if config["mode"] == "timestamp":
 		last_sync = get_sync_timestamp(config)
-		params["sync_from"] = get_datetime(last_sync) if last_sync else datetime(1970, 1, 1)
+		params["sync_from"] = get_datetime(last_sync) if last_sync else DEFAULT_SYNC_FROM
 
 	conn = None
 	cursor = None
