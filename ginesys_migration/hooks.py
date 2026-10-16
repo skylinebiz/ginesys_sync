@@ -46,6 +46,12 @@ app_include_js = "/assets/ginesys_migration/js/ginesys_sync_list.js"
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+doctype_list_js = {
+	"Customer": "public/js/ginesys_sync_list.js",
+	"Supplier": "public/js/ginesys_sync_list.js",
+	"Item Group": "public/js/ginesys_sync_list.js",
+	"Item": "public/js/ginesys_sync_list.js",
+}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
