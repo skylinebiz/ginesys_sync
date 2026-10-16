@@ -2,6 +2,22 @@
 
 All notable changes to the Ginesys Migration app are documented in this file.
 
+## [2.0.0] - 2026-10-15
+
+### Added
+
+- **Sync Ginesys Data button** — the Customer, Supplier, Item Group and Item lists have a "Sync Ginesys Data" button (System Manager only). It opens a dialog with the last sync time from Sync Setting (or the default start date when the sync has never run) and the number of records from Ginesys Sync Setting > Limit. Start Sync queues the same background job as the Sync button in Ginesys Sync Setting (long queue, at front, one sync at a time, batches of 1000) and shows the progress in the dialog; the list refreshes when it finishes.
+- **`get_sync_info`** — whitelisted method on Ginesys Sync Setting that returns the last sync time, default start date, mode and Limit for a Sync Type.
+- **Button placement** — added from the list route instead of `frappe.listview_settings`, so it sits next to other apps' list buttons (for example Style Creator on Item) instead of replacing them, and appears before the List View switcher.
+
+### Removed
+
+- **Item Definition sync** — the separate `Item Definition` Sync Type, the `sync_item_definitions` script (`item_definition_sync.py`) and the `last_item_desc_sync` field in Sync Setting. DESC1–DESC6 are still copied into `custom_def_1`–`custom_def_6` as part of the Item sync; the helpers now live in `finished_item_sync.py`.
+
+### Changed
+
+- **Patch `reset_removed_sync_type`** — Ginesys Sync Setting that still had `Item Definition` selected as Sync Type is set back to `Item`.
+
 ## [1.4.0] - 2026-10-13
 
 ### Changed
