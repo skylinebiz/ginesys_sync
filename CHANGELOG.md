@@ -2,6 +2,20 @@
 
 All notable changes to the Ginesys Migration app are documented in this file.
 
+## [3.0.0] - 2026-10-21
+
+### Added
+
+- **Sync alert** — a sync is tracked at page level, so closing the dialog no longer loses it: an alert with the synced / failed counts (or the error) is shown when it finishes, wherever the user is on the desk, and a sync that is still running is picked up again on page load and when a list is opened.
+- **"Sync already in progress"** — shown in the dialog when it is opened while a sync is running.
+- **Confirmation on Ginesys Sync Setting** — the Sync button asks "Are you sure you want to sync {Sync Type} with a limit of {Limit}?" (Cancel / Sync) before starting. It is skipped when a sync is already running, and the progress dialog opens directly instead.
+
+### Changed
+
+- **Common sync dialog** — the list views' "Sync Ginesys Data" button and the Sync button in Ginesys Sync Setting now share one dialog, `ginesys_migration.sync.open_dialog(sync_type, { show_info })`, in `public/js/ginesys_sync_dialog.js`. The list views show Last Sync and Records and start on Start Sync; Ginesys Sync Setting shows only the progress and starts straight away. `ginesys_sync_list.js` now only adds the list button.
+- **Ginesys Sync Setting** — its own progress and polling code was removed in favour of the common dialog; the result is shown in the dialog instead of a "Success" message.
+- **Hooks** — `ginesys_sync_dialog.js` is loaded through `app_include_js`, `doctype_js` (Ginesys Sync Setting) and `doctype_list_js` (Customer, Supplier, Item Group, Item).
+
 ## [2.0.0] - 2026-10-15
 
 ### Added
