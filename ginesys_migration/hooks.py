@@ -27,7 +27,7 @@ required_apps = ["erpnext", "ec"]
 # include js, css files in header of desk.html
 # app_include_css = "/assets/ginesys_migration/css/ginesys_migration.css"
 # app_include_js = "/assets/ginesys_migration/js/barcode_scanner_override.js"
-app_include_js = "/assets/ginesys_migration/js/ginesys_sync_list.js"
+app_include_js = "/assets/ginesys_migration/js/ginesys_sync_dialog.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/ginesys_migration/css/ginesys_migration.css"
@@ -45,12 +45,14 @@ app_include_js = "/assets/ginesys_migration/js/ginesys_sync_list.js"
 
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
+# The shared sync dialog, also used by the Sync button in Ginesys Sync Setting
+doctype_js = {"Ginesys Sync Setting": "public/js/ginesys_sync_dialog.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 doctype_list_js = {
-	"Customer": "public/js/ginesys_sync_list.js",
-	"Supplier": "public/js/ginesys_sync_list.js",
-	"Item Group": "public/js/ginesys_sync_list.js",
-	"Item": "public/js/ginesys_sync_list.js",
+	"Customer": ["public/js/ginesys_sync_dialog.js", "public/js/ginesys_sync_list.js"],
+	"Supplier": ["public/js/ginesys_sync_dialog.js", "public/js/ginesys_sync_list.js"],
+	"Item Group": ["public/js/ginesys_sync_dialog.js", "public/js/ginesys_sync_list.js"],
+	"Item": ["public/js/ginesys_sync_dialog.js", "public/js/ginesys_sync_list.js"],
 }
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
