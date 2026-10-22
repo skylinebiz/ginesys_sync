@@ -2,6 +2,36 @@
 
 All notable changes to the Ginesys Migration app are documented in this file.
 
+## [3.0.0] - 2026-10-21
+
+### Added
+
+- **Sync alert** — a sync is tracked at page level, so closing the dialog no longer loses it: an alert with the synced / failed counts (or the error) is shown when it finishes, wherever the user is on the desk, and a sync that is still running is picked up again on page load and when a list is opened.
+- **"Sync already in progress"** — shown in the dialog when it is opened while a sync is running.
+- **Confirmation on Ginesys Sync Setting** — the Sync button asks "Are you sure you want to sync {Sync Type} with a limit of {Limit}?" (Cancel / Sync) before starting. It is skipped when a sync is already running, and the progress dialog opens directly instead.
+
+### Changed
+
+- **Common sync dialog** — the list views' "Sync Ginesys Data" button and the Sync button in Ginesys Sync Setting now share one dialog, `ginesys_migration.sync.open_dialog(sync_type, { show_info })`, in `public/js/ginesys_sync_dialog.js`. The list views show Last Sync and Records and start on Start Sync; Ginesys Sync Setting shows only the progress and starts straight away. `ginesys_sync_list.js` now only adds the list button.
+- **Ginesys Sync Setting** — its own progress and polling code was removed in favour of the common dialog; the result is shown in the dialog instead of a "Success" message.
+- **Hooks** — `ginesys_sync_dialog.js` is loaded through `app_include_js`, `doctype_js` (Ginesys Sync Setting) and `doctype_list_js` (Customer, Supplier, Item Group, Item).
+
+## [2.0.0] - 2026-10-15
+
+### Added
+
+- **Sync Ginesys Data button** — the Customer, Supplier, Item Group and Item lists have a "Sync Ginesys Data" button (System Manager only). It opens a dialog with the last sync time from Sync Setting (or the default start date when the sync has never run) and the number of records from Ginesys Sync Setting > Limit. Start Sync queues the same background job as the Sync button in Ginesys Sync Setting (long queue, at front, one sync at a time, batches of 1000) and shows the progress in the dialog; the list refreshes when it finishes.
+- **`get_sync_info`** — whitelisted method on Ginesys Sync Setting that returns the last sync time, default start date, mode and Limit for a Sync Type.
+- **Button placement** — added from the list route instead of `frappe.listview_settings`, so it sits next to other apps' list buttons (for example Style Creator on Item) instead of replacing them, and appears before the List View switcher.
+
+### Removed
+
+- **Item Definition sync** — the separate `Item Definition` Sync Type, the `sync_item_definitions` script (`item_definition_sync.py`) and the `last_item_desc_sync` field in Sync Setting. DESC1–DESC6 are still copied into `custom_def_1`–`custom_def_6` as part of the Item sync; the helpers now live in `finished_item_sync.py`.
+
+### Changed
+
+- **Patch `reset_removed_sync_type`** — Ginesys Sync Setting that still had `Item Definition` selected as Sync Type is set back to `Item`.
+
 ## [1.4.0] - 2026-10-13
 
 ### Changed

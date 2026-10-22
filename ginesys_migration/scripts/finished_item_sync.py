@@ -5,14 +5,11 @@ from erpnext.controllers.item_variant import create_variant
 from ginesys_migration.utils.oracle import get_ginesys_connection, get_adrk_connection
 from erpnext.controllers.item_variant import get_variant
 from ginesys_migration.scripts.sync_item_groups import ensure_hsn_code
-from ginesys_migration.scripts.item_definition_sync import (
-    DEF_FIELDS,
-    get_definition_values,
-    format_too_long,
-    log_too_long,
-)
 
 COMMIT_EVERY = 500
+
+# Ginesys DESC1..DESC6 -> Item custom_def_1..custom_def_6 (ec app "Definitions" section)
+DEF_FIELDS = [f"custom_def_{i}" for i in range(1, 7)]
 COST_PRICE_LIST = "Cost Price"
 # HSN for non-finished Items whose Item Group has no HSN/SAC
 DEFAULT_NON_FINISHED_HSN = "520829"
@@ -797,6 +794,70 @@ def get_attribute_value(attribute_name, value):
             return attribute_value
 
     return value
+
+
+# Definitions
+def get_definition_values(descs, fields=DEF_FIELDS):
+    """
+    Map DESC1..DESC6 to custom_def_1..custom_def_6 (or `descs` to `fields`).
+
+    Values longer than the field allows are left empty so the rest of the Item
+    still saves. Returns (values, too_long) where too_long is
+    [(field, label, max_length, value)].
+    """
+
+    meta = frappe.get_meta("Item")
+
+    values = {}
+    too_long = []
+
+    for field, desc in zip(fields, descs):
+        value = str(desc or "").strip()
+        df = meta.get_field(field)
+        max_length = get_max_length(df)
+
+        if max_length and len(value) > max_length:
+            too_long.append((field, df.label if df else field, max_length, value))
+            value = ""
+
+        values[field] = value
+
+    return values, too_long
+
+
+def get_max_length(df):
+    """Same limit Frappe enforces on save (BaseDocument._validate_length); 0 = no limit."""
+
+    if not df:
+        return 0
+
+    column_type, default_length = (frappe.db.type_map.get(df.fieldtype) or (None, None))[:2]
+
+    if column_type != "varchar":
+        return 0
+
+    return cint(df.length) or cint(default_length)
+
+
+def format_too_long(item_code, icode, too_long):
+    return "\n".join(
+        [f"Item : {item_code} (ICODE {icode})"]
+        + [
+            f"  {label} ({field}) - {len(value)}/{max_length} chars: {value}"
+            for field, label, max_length, value in too_long
+        ]
+    )
+
+
+def log_too_long(too_long_items):
+    if not too_long_items:
+        return
+
+    frappe.log_error(
+        title=f"Item Definition Too Long - {len(too_long_items)} Item(s)",
+        message="Left empty because value exceeds field length:\n\n"
+        + "\n\n".join(too_long_items),
+    )
 
 
 # Logger

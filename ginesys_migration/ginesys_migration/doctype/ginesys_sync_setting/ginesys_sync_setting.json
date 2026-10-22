@@ -65,7 +65,7 @@
    "fieldname": "sync_type",
    "fieldtype": "Select",
    "label": "Sync Type",
-   "options": "Item\nItem Group\nItem Definition\nCustomer\nSupplier",
+   "options": "Item\nItem Group\nCustomer\nSupplier",
    "reqd": 1
   },
   {
