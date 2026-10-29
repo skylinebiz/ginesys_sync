@@ -4,6 +4,17 @@ app_publisher = "Harshit"
 app_description = "Migrate Ginesys Data"
 app_email = "harshit@skylinebiz.in"
 app_license = "mit"
+app_home = "/desk/ginesys-sync-setting"
+app_logo_url = "/assets/ginesys_migration/images/ginesys-migration-logo.svg"
+
+add_to_apps_screen = [
+    {
+        "name": app_name,
+        "logo": app_logo_url,
+        "title": app_title,
+        "route": app_home,
+    }
+]
 
 # Apps
 # ------------------
