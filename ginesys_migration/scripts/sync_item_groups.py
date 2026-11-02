@@ -172,7 +172,7 @@ def sync_item_groups(host=None, port=None):
             )
 
         frappe.db.set_single_value(
-            "Sync Setting",
+            "Ginesys Sync Tracker",
             "last_item_group_sync",
             now_datetime(),
         )

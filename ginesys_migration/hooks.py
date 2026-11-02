@@ -4,7 +4,7 @@ app_publisher = "Harshit"
 app_description = "Migrate Ginesys Data"
 app_email = "harshit@skylinebiz.in"
 app_license = "mit"
-app_home = "/desk/ginesys-sync-setting"
+app_home = "/desk/ginesys-settings"
 app_logo_url = "/assets/ginesys_migration/images/ginesys-migration-logo.svg"
 
 add_to_apps_screen = [
@@ -56,8 +56,8 @@ app_include_js = "/assets/ginesys_migration/js/ginesys_sync_dialog.js"
 
 # include js in doctype views
 # doctype_js = {"doctype" : "public/js/doctype.js"}
-# The shared sync dialog, also used by the Sync button in Ginesys Sync Setting
-doctype_js = {"Ginesys Sync Setting": "public/js/ginesys_sync_dialog.js"}
+# The shared sync dialog, also used by the Sync button in Ginesys Settings
+doctype_js = {"Ginesys Settings": "public/js/ginesys_sync_dialog.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 doctype_list_js = {
 	"Customer": ["public/js/ginesys_sync_dialog.js", "public/js/ginesys_sync_list.js"],
@@ -207,6 +207,15 @@ after_install = "ginesys_migration.install.after_install"
 # override_whitelisted_methods = {
 # 	"frappe.desk.doctype.event.event.get_events": "ginesys_migration.event.get_events"
 # }
+
+# Ginesys Sync Setting was renamed to Ginesys Settings: keep the old method paths working
+_OLD_SETTINGS_MODULE = "ginesys_migration.ginesys_migration.doctype.ginesys_sync_setting.ginesys_sync_setting"
+_SETTINGS_MODULE = "ginesys_migration.ginesys_migration.doctype.ginesys_settings.ginesys_settings"
+
+override_whitelisted_methods = {
+	f"{_OLD_SETTINGS_MODULE}.{method}": f"{_SETTINGS_MODULE}.{method}"
+	for method in ("test_connection", "start_sync", "get_sync_info", "get_sync_status")
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,

@@ -13,9 +13,9 @@ IGNORE_TEST_RECORD_DEPENDENCIES = []  # eg. ["User"]
 
 
 
-class IntegrationTestSyncSetting(IntegrationTestCase):
+class IntegrationTestGinesysSettings(IntegrationTestCase):
 	"""
-	Integration tests for SyncSetting.
+	Integration tests for GinesysSettings.
 	Use this class for testing interactions between multiple components.
 	"""
 

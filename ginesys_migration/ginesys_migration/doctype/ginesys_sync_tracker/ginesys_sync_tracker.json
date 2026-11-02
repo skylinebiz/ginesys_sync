@@ -8,7 +8,8 @@
   "last_item_sync",
   "last_customer_sync",
   "last_item_group_sync",
-  "last_supplier_sync"
+  "last_supplier_sync",
+  "last_scheduled_sync"
  ],
  "fields": [
   {
@@ -35,16 +36,23 @@
    "fieldname": "last_supplier_sync",
    "fieldtype": "Datetime",
    "label": "Last Supplier Sync"
+  },
+  {
+   "description": "When the daily scheduled sync (Ginesys Settings > Sync Time) last completed, after both Item Groups and Items.",
+   "fieldname": "last_scheduled_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Scheduled Sync",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-06 15:03:03.049778",
+ "modified": "2026-11-02 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Ginesys Migration",
- "name": "Sync Setting",
+ "name": "Ginesys Sync Tracker",
  "owner": "Administrator",
  "permissions": [
   {
