@@ -28,7 +28,7 @@ def sync_finished_item_data(host=None, port=None, limit=50):
         cursor = conn.cursor()
 
         last_item_sync = frappe.db.get_single_value(
-            "Sync Setting",
+            "Ginesys Sync Tracker",
             "last_item_sync",
         )
 
@@ -312,10 +312,10 @@ def sync_finished_item_data(host=None, port=None, limit=50):
         last_changed = get_datetime(rows[-1][1])
 
         print("Last row timestamp:", last_changed)
-        print("Saved in Sync Setting:", last_changed)
+        print("Saved in Ginesys Sync Tracker:", last_changed)
 
         frappe.db.set_single_value(
-            "Sync Setting",
+            "Ginesys Sync Tracker",
             "last_item_sync",
             last_changed,
         )

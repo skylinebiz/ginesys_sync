@@ -155,7 +155,7 @@ def supplier_sync(host=None, port=None, limit=50, offset=0):
         print(f"\nSync Completed | Success: {synced} | Failed: {failed}")
 
         frappe.db.set_single_value(
-            "Sync Setting",
+            "Ginesys Sync Tracker",
             "last_supplier_sync",
             now_datetime(),
         )

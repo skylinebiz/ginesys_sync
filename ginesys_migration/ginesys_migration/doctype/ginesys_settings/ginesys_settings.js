@@ -1,9 +1,9 @@
 // Copyright (c) 2026, Harshit and contributors
 // For license information, please see license.txt
 
-const SETTING_METHODS = "ginesys_migration.ginesys_migration.doctype.ginesys_sync_setting.ginesys_sync_setting";
+const SETTING_METHODS = "ginesys_migration.ginesys_migration.doctype.ginesys_settings.ginesys_settings";
 
-frappe.ui.form.on("Ginesys Sync Setting", {
+frappe.ui.form.on("Ginesys Settings", {
 	refresh(frm) {
 		frm.add_custom_button(__("Test Connection"), () => test_connection(frm));
 		frm.add_custom_button(__("Sync"), () => start_sync(frm)).addClass("btn-primary");

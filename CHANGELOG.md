@@ -2,6 +2,21 @@
 
 All notable changes to the Ginesys Migration app are documented in this file.
 
+## [4.0.0] - 2026-11-02
+
+### Added
+
+- **Scheduled sync** — Ginesys Settings has a new Scheduled Sync section with a **Sync Time**. Every day at that time a background job syncs Item Groups first and then Items, up to the Limit, the same as the Sync button. A failed Item Group sync stops it, as the Items need those groups. Leave Sync Time empty to turn it off.
+- **Scheduled Job Type** — saving Ginesys Settings creates or updates a Scheduled Job Type (`queue_scheduled_sync`) with the Sync Time as its cron, stopped while Sync Time is empty. It is linked to a Scheduler Event so `bench migrate` keeps it. Frappe runs Cron jobs on the default queue, so the job only queues the sync itself on the long queue, at the front. The `create_scheduled_sync_job` patch creates it on existing sites.
+- **Last Scheduled Sync** — new field in Ginesys Sync Tracker, set when a scheduled sync has completed (Item Groups and Items). Each sync still updates its own times as before: Last Item Group Sync, Last Item Sync and Last Sync.
+- **App icon** — the app now has its own icon (a "G" tile, `ginesys-migration-logo.svg`) on the Apps screen, set through `app_logo_url` / `add_to_apps_screen` in `hooks.py`.
+
+### Changed
+
+- **One sync at a time** — the list views' "Sync Ginesys Data" button, the Sync button in Ginesys Settings and the scheduled sync share one background job. A sync cannot be started while another is queued or running, including while the scheduled sync is still waiting on the default queue ("A Ginesys sync is already queued or running."). If a sync is running at the Sync Time, that day's scheduled sync is skipped and an Error Log ("Ginesys Scheduled Sync Skipped") is added.
+- **Renamed doctypes** — Ginesys Sync Setting is now **Ginesys Settings**, and Sync Setting (the last-sync timestamps) is now **Ginesys Sync Tracker**. The `rename_sync_setting_doctypes` patch renames them before the doctypes are synced, keeping their saved values and the stored password.
+- **Backward compatibility** — the old whitelisted method paths (`...doctype.ginesys_sync_setting.ginesys_sync_setting.<method>`) are mapped to the new ones through `override_whitelisted_methods`, and the old desk routes `/desk/ginesys-sync-setting` and `/desk/sync-setting` redirect to the new ones. The app home is now `/desk/ginesys-settings`.
+
 ## [3.0.0] - 2026-10-21
 
 ### Added
