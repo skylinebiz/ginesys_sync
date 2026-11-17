@@ -1,9 +1,9 @@
 import frappe
 import oracledb
 
-SETTINGS_DOCTYPE = "Ginesys Sync Setting"
+SETTINGS_DOCTYPE = "Ginesys Settings"
 
-# Used only when neither the caller nor Ginesys Sync Setting gives a value
+# Used only when neither the caller nor Ginesys Settings gives a value
 DEFAULT_HOST = "192.168.3.3"
 DEFAULT_PORT = 1521
 DEFAULT_USER = "ARCR"
@@ -12,7 +12,7 @@ DEFAULT_SERVICE_NAME = "GINESYS"
 
 
 def get_connection_settings():
-    """Server IP, port, username, password and service name from Ginesys Sync Setting."""
+    """Server IP, port, username, password and service name from Ginesys Settings."""
 
     if not frappe.db.exists("DocType", SETTINGS_DOCTYPE):
         return {}
@@ -36,7 +36,7 @@ def get_ginesys_connection(
     """
     Connect to the Ginesys Oracle database.
 
-    Each value is taken from the argument if given, else from Ginesys Sync Setting,
+    Each value is taken from the argument if given, else from Ginesys Settings,
     else from the built-in default.
     """
 

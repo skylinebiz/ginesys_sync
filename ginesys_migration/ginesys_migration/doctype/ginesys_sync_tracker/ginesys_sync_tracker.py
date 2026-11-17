@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class SyncSetting(Document):
+class GinesysSyncTracker(Document):
 	pass

@@ -6,11 +6,11 @@
 //       show_info: false - only the progress; the sync starts as soon as it opens
 //   resume_tracking() - pick up a sync that is already running
 //
-// Used by ginesys_sync_list.js (list views) and the Ginesys Sync Setting form.
+// Used by ginesys_sync_list.js (list views) and the Ginesys Settings form.
 // Loaded through hooks.py: app_include_js, doctype_list_js and doctype_js.
 
 (function () {
-	const METHODS = "ginesys_migration.ginesys_migration.doctype.ginesys_sync_setting.ginesys_sync_setting";
+	const METHODS = "ginesys_migration.ginesys_migration.doctype.ginesys_settings.ginesys_settings";
 	const SYNC_EVENT = "ginesys_sync";
 	const POLL_MS = 3000;
 	const ACTIVE_STATES = ["queued", "running", "waiting"];
@@ -63,7 +63,7 @@
 		}
 	}
 
-	// A sync started earlier (here, or in Ginesys Sync Setting) is still running
+	// A sync started earlier (here, or in Ginesys Settings) is still running
 	function resume_tracking() {
 		if (state.poll) return;
 
@@ -118,7 +118,7 @@
 		}
 	}
 
-	// The one sync dialog, used by the list views and by Ginesys Sync Setting.
+	// The one sync dialog, used by the list views and by Ginesys Settings.
 	//   show_info: true  - shows Last Sync and Records, and syncs on "Start Sync"
 	//   show_info: false - only the progress; the sync starts as soon as it opens
 	function open_dialog(sync_type, { show_info = true } = {}) {
@@ -151,7 +151,7 @@
 					label: __("Records"),
 					read_only: 1,
 					default: records_text(info),
-					description: __("Set in Ginesys Sync Setting > Limit."),
+					description: __("Set in Ginesys Settings > Limit."),
 				}
 			);
 		}
@@ -173,7 +173,7 @@
 		state.open_view = { sync_type, render };
 		dialog.show();
 
-		// A sync is already running (started here or from Ginesys Sync Setting)
+		// A sync is already running (started here or from Ginesys Settings)
 		frappe.call({ method: `${METHODS}.get_sync_status` }).then((r) => {
 			if (r.message && ACTIVE_STATES.includes(r.message.state)) {
 				dialog.disable_primary_action();
@@ -300,6 +300,10 @@
 
 		return cstr(info.limit);
 	}
+
+	// Old desk routes of the renamed doctypes (bookmarks, links in old messages)
+	frappe.re_route["ginesys-sync-setting"] = "ginesys-settings";
+	frappe.re_route["sync-setting"] = "ginesys-sync-tracker";
 
 	frappe.provide("ginesys_migration.sync");
 	ginesys_migration.sync.open_dialog = open_dialog;

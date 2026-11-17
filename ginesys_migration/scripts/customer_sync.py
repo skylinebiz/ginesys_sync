@@ -177,7 +177,7 @@ def customer_sync(host=None, port=None, limit=50, offset=0):
         )
 
         frappe.db.set_single_value(
-            "Sync Setting",
+            "Ginesys Sync Tracker",
             "last_customer_sync",
             now_datetime(),
         )

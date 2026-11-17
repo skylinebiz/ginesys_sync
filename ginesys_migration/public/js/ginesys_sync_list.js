@@ -1,9 +1,9 @@
 // "Sync Ginesys Data" button on the Customer, Supplier, Item Group and Item lists.
 // Opens the common sync dialog (ginesys_sync_dialog.js) with the last sync time and
-// the number of records (Ginesys Sync Setting > Limit).
+// the number of records (Ginesys Settings > Limit).
 
 (function () {
-	// List view doctype -> Sync Type in Ginesys Sync Setting
+	// List view doctype -> Sync Type in Ginesys Settings
 	const SYNC_TYPES = {
 		Customer: "Customer",
 		Supplier: "Supplier",
