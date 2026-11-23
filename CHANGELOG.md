@@ -2,6 +2,12 @@
 
 All notable changes to the Ginesys Migration app are documented in this file.
 
+## [4.0.1] - 2026-11-19
+
+### Changed
+
+- **App icon** — replaced the grey "G" text tile with a drawn icon: orange sync arrows, for the Ginesys data sync, on a rounded square (`ginesys-migration-logo.svg`). It has no text, so it stays readable at sidebar size. Hard-refresh browsers to see it.
+
 ## [4.0.0] - 2026-11-02
 
 ### Added
