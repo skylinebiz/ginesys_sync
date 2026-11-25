@@ -2,6 +2,24 @@
 
 All notable changes to the Ginesys Migration app are documented in this file.
 
+## [5.0.0] - 2026-11-25
+
+### Added
+
+- **Stock Entry → Ginesys Miscellaneous Entry** — new `integrations/ginesys_misc_entry.py`. Submitting a Stock Entry of a configured type (`DEFAULTS["stock_entry_types"]`, for now only **Disassemble**; Material Consumption / Material Transfer for Manufacture are listed but commented) queues a background job that creates Miscellaneous Entries in Ginesys. A Ginesys failure never blocks the submit.
+- **Direction from the warehouses** — each item row's Source Warehouse becomes an **Issue** and its Target Warehouse a **Receive**. A warehouse points to the Ginesys stock point with the same name as its Warehouse Name (e.g. `POS (Ambala) - G` → `POS (Ambala)`); exceptions go in `DEFAULTS["warehouse_stock_points"]`. **One Miscellaneous Entry is created per stock point**, with both tabs when a stock point is both source and target. The same item in the same direction is summed into one line.
+- **Ginesys WebAPI** — entries are saved through the same REST API the Ginesys web screen uses: `POST /WebAPI/token` (password grant) → `POST /WebAPI/api/MiscEntry/Create` with a Bearer token → `GET /WebAPI/api/Session/Logout`. Site, OU and Misc Entry No are Ginesys codes in `DEFAULTS` (Sakshi Jain POS 1832, OU 1, (19) Misc Issue 323; Arihant Enterprises 702 and Arihant Creations 1 are listed commented). Stock point codes are looked up by name in Ginesys (`INVLOC`) over the Oracle connection in Ginesys Settings. The Ginesys item id is the Item's first barcode, else the item code.
+- **Remarks** — `<EC Lot> / <Stock Entry>`, e.g. `TT-001 / MAT-STE-00017`.
+- **Single sign-in handling** — Ginesys allows one session per user. Every Ginesys call takes a Redis lock shared by all workers and sites on the bench, always logs out afterwards, and on "012 already logged in" retries 6 times, 10 s apart. With `kill_existing_session: 1` it then ends the other session (as the Ginesys login screen does); off by default, since that would also log out a person using the same login.
+- **Priority job** — the job runs on the `short` queue at the front, after the submit is committed, deduplicated per Stock Entry.
+- **Results and Error Log** — each stock point's result is a comment on the Stock Entry ("Ginesys Miscellaneous Entry created for stock point …: IMS… (… Ginesys code …)" or "…failed…"). Every failure (login, missing stock point, Ginesys refusing the save, e.g. negative stock) also goes to **Error Log**. `resend(stock_entry)` (System Manager) sends only the stock points that are not in Ginesys yet, so nothing is created twice.
+- **Cancel blocked** — `before_cancel` hook `block_cancel_if_sent`: a Stock Entry that has entries in Ginesys cannot be cancelled ("…cannot be cancelled: Ginesys Miscellaneous Entries IMS… were created for it."). A cancel flow that adds " / Cancelled" to the Ginesys entries' remarks is in the module but kept commented, with its `on_cancel` hook: Ginesys refuses quantity 0 ("zero quantity receive items found. Entry not allowed").
+- **Configuration** — per site in `site_config.json` under `ginesys_misc_entry`: `enabled`, `username`, `password`, `kill_existing_session` (any `DEFAULTS` key can be overridden there too). `GINESYS_WEB_USERNAME`, `GINESYS_WEB_PASSWORD` and `GINESYS_WEB_API_URL` environment variables are used when not set there. Off unless `enabled` is 1.
+
+### Changed
+
+- **Required apps** — `ec_production` is now a required app (`required_apps = ["erpnext", "ec", "ec_production"]`) for the Stock Entry `ec_lot` field used in the remarks. Sites that have this app need ec_production installed.
+
 ## [4.0.1] - 2026-11-19
 
 ### Changed
