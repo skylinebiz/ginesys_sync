@@ -19,7 +19,7 @@ add_to_apps_screen = [
 # Apps
 # ------------------
 
-required_apps = ["erpnext", "ec"]
+required_apps = ["erpnext", "ec", "ec_production"]  # ec_production: Stock Entry ec_lot field
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
@@ -286,3 +286,12 @@ override_whitelisted_methods = {
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+# Stock Entry -> Ginesys Miscellaneous Entry (config: "ginesys_misc_entry" in site_config.json)
+doc_events = {
+	"Stock Entry": {
+		"on_submit": "ginesys_migration.integrations.ginesys_misc_entry.on_stock_entry_submit",
+		# Cancel is blocked once entries exist in Ginesys (the cancel flow is kept commented)
+		"before_cancel": "ginesys_migration.integrations.ginesys_misc_entry.block_cancel_if_sent",
+		# "on_cancel": "ginesys_migration.integrations.ginesys_misc_entry.on_stock_entry_cancel",
+	},
+}
