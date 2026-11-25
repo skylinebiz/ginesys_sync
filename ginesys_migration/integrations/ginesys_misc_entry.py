@@ -85,9 +85,9 @@ DEFAULTS = {
 	# Add an entry here only where the names differ, e.g. {"Stores - G": "POS(Udaipur)"}.
 	"warehouse_stock_points": {},
 	# Ginesys internal codes (ADMSITE.CODE etc.), read from Ginesys
-	"site_code": 1832,  # Site: Sakshi Jain POS
+	# "site_code": 1832,  # Site: Sakshi Jain POS
 	# "site_code": 702,  # Site: Arihant Enterprises (AREN, OU 1)
-	# "site_code": 1,  # Site: Arihant Creations (ARCR, OU 1)
+	"site_code": 1,  # Site: Arihant Creations (ARCR, OU 1)
 	"ou_code": 1,  # OU: Arihant
 	"connected_site_code": 702,  # Arihant Enterprises (the user's connected site)
 	"scheme_code": 323,  # Misc Entry No: (19) Misc Issue
