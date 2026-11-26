@@ -109,6 +109,17 @@ doctype_list_js = {
 # after_install = "ginesys_migration.install.after_install"
 
 after_install = "ginesys_migration.install.after_install"
+
+# Fixtures (synced on bench migrate; update with bench --site <site> export-fixtures --app ginesys_migration)
+fixtures = [
+	{
+		"dt": "Custom Field",
+		"filters": [
+			["module", "in", ["Ginesys Migration"]]
+		],
+	},
+]
+
 # Uninstallation
 # ------------
 
