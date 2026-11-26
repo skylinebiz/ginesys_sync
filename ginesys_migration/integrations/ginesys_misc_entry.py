@@ -225,7 +225,8 @@ def success_comment_prefix(stock_point):
 
 
 def already_sent(stock_entry, stock_point):
-	return bool(get_comments(stock_entry, success_comment_prefix(stock_point)))
+	stock_point = stock_point.casefold()
+	return any(entry["stock_point"].casefold() == stock_point for entry in get_sent_entries(stock_entry))
 
 
 def get_pending_groups(se, config):
@@ -237,7 +238,8 @@ def get_pending_groups(se, config):
 def send_stock_entry(stock_entry):
 	"""
 	One Ginesys Miscellaneous Entry per stock point of the Stock Entry's warehouses.
-	Each one is tracked by a comment, so a resend only sends the ones still missing.
+	Each one is recorded on the Stock Entry (ginesys_entries), so a resend only sends the
+	ones still missing.
 	"""
 
 	try:
@@ -275,6 +277,7 @@ def send_group(se, group, stock_points, config, client):
 		result = client.create_misc_entry(payload)
 
 		misc_no = result.get("schemeDocNo") or result.get("schemeDocno") or ""
+		record_sent(se.name, stock_point, misc_no, result.get("code"))
 		se.add_comment(
 			"Info",
 			f"{success_comment_prefix(stock_point)} {misc_no} "
@@ -302,31 +305,89 @@ def resend(stock_entry):
 	enqueue("send_stock_entry", stock_entry)
 
 
-# Cancel ---------------------------------------------------------------------------------
+# Sent entries ---------------------------------------------------------------------------
+#
+# Recorded on the Stock Entry in two custom fields (setup/custom_field.py):
+#   ginesys_synced  (Check)       "Sent to Ginesys", ticked once any Ginesys entry was created
+#   ginesys_entries (Small Text)  "Ginesys Entries", one line per stock point:
+#                                 "POS (Ambala): IMS26-27SAK00008 (code 1825028)"
+# The "created" comments stay as history and still count, so removing either one never
+# leads to a duplicate in Ginesys.
+
+ENTRY_LINE = re.compile(r"^(?P<stock_point>.*?): (?P<misc_no>\S*) \(code (?P<code>\d+)\)$")
+# Comments from before one entry per stock point name no stock point; all went to this one
+LEGACY_STOCK_POINT = "POS(Udaipur)"
+
+
+def has_entry_fields():
+	return frappe.get_meta("Stock Entry").has_field("ginesys_entries")
+
+
+def format_entry_line(stock_point, misc_no, code):
+	return f"{stock_point}: {misc_no} (code {code})"
 
 
 def get_sent_entries(stock_entry):
-	"""[(ginesys_code, misc_no)] of the Ginesys entries created for this Stock Entry."""
+	"""[{"stock_point", "misc_no", "code"}] of the Ginesys entries created for this Stock Entry."""
 
-	entries = []
+	entries = {}
+
+	if has_entry_fields():
+		text = frappe.db.get_value("Stock Entry", stock_entry, "ginesys_entries") or ""
+		for line in text.splitlines():
+			match = ENTRY_LINE.match(line.strip())
+			if match:
+				entries[match["code"]] = match.groupdict()
+
 	for content in get_comments(stock_entry, SUCCESS_PREFIX):
 		code = re.search(r"Ginesys code (\d+)", content)
+		if not code:
+			continue
+		stock_point = re.search(rf"^{re.escape(SUCCESS_PREFIX)} for stock point (.*?): ", content)
 		misc_no = re.search(r"\b(IMS[\w-]+)", content)
-		if code:
-			entries.append((code.group(1), misc_no.group(1) if misc_no else ""))
-	return entries
+		entries.setdefault(
+			code.group(1),
+			{
+				"stock_point": stock_point.group(1) if stock_point else LEGACY_STOCK_POINT,
+				"misc_no": misc_no.group(1) if misc_no else "",
+				"code": code.group(1),
+			},
+		)
+
+	return list(entries.values())
+
+
+def record_sent(stock_entry, stock_point, misc_no, code):
+	"""Add the created Ginesys entry to the Stock Entry's fields, committed at once."""
+
+	if not has_entry_fields():
+		return
+
+	current = frappe.db.get_value("Stock Entry", stock_entry, "ginesys_entries") or ""
+	lines = [line for line in current.splitlines() if line.strip()]
+	lines.append(format_entry_line(stock_point, misc_no, code))
+	frappe.db.set_value(
+		"Stock Entry",
+		stock_entry,
+		{"ginesys_synced": 1, "ginesys_entries": "\n".join(lines)},
+		update_modified=False,
+	)
+	frappe.db.commit()
+
+
+# Cancel ---------------------------------------------------------------------------------
 
 
 def block_cancel_if_sent(doc, method=None):
 	"""doc_events before_cancel: a Stock Entry with entries in Ginesys cannot be cancelled."""
 
-	misc_nos = [misc_no or code for code, misc_no in get_sent_entries(doc.name)]
-	if misc_nos:
+	misc_nos = [entry["misc_no"] or entry["code"] for entry in get_sent_entries(doc.name)]
+	if misc_nos or doc.get("ginesys_synced"):
 		frappe.throw(
 			_(
 				"Stock Entry {0} cannot be cancelled: Ginesys Miscellaneous Entries {1} were created for it. "
 				"Cancelling in ERPNext does not reverse them in Ginesys."
-			).format(frappe.bold(doc.name), ", ".join(frappe.bold(n) for n in misc_nos)),
+			).format(frappe.bold(doc.name), ", ".join(frappe.bold(n) for n in misc_nos) or _("(see Ginesys Entries)")),
 			title=_("Sent to Ginesys"),
 		)
 
@@ -339,7 +400,7 @@ def block_cancel_if_sent(doc, method=None):
 # 	"""Stock Entry cancelled: add " / Cancelled" to the remarks of its Ginesys entries."""
 #
 # 	try:
-# 		pending = [(code, no) for code, no in get_sent_entries(stock_entry) if not already_marked(stock_entry, code)]
+# 		pending = [(e["code"], e["misc_no"]) for e in get_sent_entries(stock_entry) if not already_marked(stock_entry, e["code"])]
 # 		if not pending:
 # 			return
 #
