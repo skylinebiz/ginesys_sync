@@ -73,12 +73,16 @@ FAILURE_PREFIX = "Ginesys Miscellaneous Entry failed"
 DEFAULTS = {
 	"enabled": 0,
 	"web_api_url": "http://192.168.3.3/WebAPI/",
-	# Stock Entry Types that are sent to Ginesys (to be finalized). Direction comes from the
-	# warehouses: Source Warehouse -> Issue, Target Warehouse -> Receive.
+	# Stock Entry Types that are sent to Ginesys. Direction comes from the warehouses:
+	# Source Warehouse -> Issue, Target Warehouse -> Receive, so a Material Receipt
+	# (target only) becomes a Receive and a Material Issue (source only) an Issue.
+	# Keep in sync with depends_on of the Stock Entry fields in fixtures/custom_field.json.
 	"stock_entry_types": [
+		"Material Receipt",
+		"Material Issue",
 		# "Material Consumption for Manufacture",
 		# "Material Transfer for Manufacture",
-		"Disassemble",
+		# "Disassemble",
 	],
 	# Warehouse -> Ginesys stock point name. By default the stock point name is the
 	# Warehouse Name (without the company abbreviation), e.g. "Ambala Godown - G" -> "Ambala Godown".
